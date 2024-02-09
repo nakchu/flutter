@@ -47,6 +47,7 @@ mixin ServicesBinding on BindingBase, SchedulerBinding {
     SystemChannels.accessibility.setMessageHandler((dynamic message) => _handleAccessibilityMessage(message as Object));
     SystemChannels.lifecycle.setMessageHandler(_handleLifecycleMessage);
     SystemChannels.platform.setMethodCallHandler(_handlePlatformMessage);
+    PlatformDispatcher.instance.onViewFocusChange = handleViewFocusChanged;
     TextInput.ensureInitialized();
     readInitialLifecycleStateFromNativeWindow();
     initializationComplete();
@@ -359,6 +360,10 @@ mixin ServicesBinding on BindingBase, SchedulerBinding {
     }
     return;
   }
+
+  @protected
+  @mustCallSuper
+  void handleViewFocusChanged(ui.ViewFocusEvent event) {}
 
   Future<dynamic> _handlePlatformMessage(MethodCall methodCall) async {
     final String method = methodCall.method;

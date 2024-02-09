@@ -3,11 +3,15 @@
 // found in the LICENSE file.
 
 import 'dart:collection';
-import 'dart:ui' show FlutterView, SemanticsUpdate;
+import 'dart:ui' show FlutterView, SemanticsUpdate, ViewFocusDirection, ViewFocusEvent, ViewFocusState;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 
+import 'binding.dart';
+import 'focus_manager.dart';
+import 'focus_scope.dart';
+import 'focus_traversal.dart';
 import 'framework.dart';
 import 'lookup_boundary.dart';
 import 'media_query.dart';
@@ -57,7 +61,7 @@ import 'media_query.dart';
 ///
 ///  * [Element.debugExpectsRenderObjectForSlot], which defines whether a [View]
 ///    widget is allowed in a given child slot.
-class View extends StatelessWidget {
+class View extends StatefulWidget {
   /// Create a [View] widget to bootstrap a render tree that is rendered into
   /// the provided [FlutterView].
   ///
@@ -105,7 +109,7 @@ class View extends StatelessWidget {
   /// moved to render into a different [FlutterView] then before). The context
   /// will not be informed when the _properties_ on the [FlutterView] itself
   /// change their values. To access the property values of a [FlutterView] it
-  /// is best practise to use [MediaQuery.maybeOf] instead, which will ensure
+  /// is best practice to use [MediaQuery.maybeOf] instead, which will ensure
   /// that the `context` is informed when the view properties change.
   ///
   /// See also:
@@ -113,7 +117,235 @@ class View extends StatelessWidget {
   ///  * [View.of], which throws instead of returning null if no [FlutterView]
   ///    is found.
   static FlutterView? maybeOf(BuildContext context) {
-    return LookupBoundary.dependOnInheritedWidgetOfExactType<_ViewScope>(context)?.view;
+    return RawView.maybeOf(context);
+  }
+
+  /// Returns the [FlutterView] that the provided `context` will render into.
+  ///
+  /// Throws if the `context` is not associated with a [FlutterView].
+  ///
+  /// The method creates a dependency on the `context`, which will be informed
+  /// when the identity of the [FlutterView] changes (i.e. the `context` is
+  /// moved to render into a different [FlutterView] then before). The context
+  /// will not be informed when the _properties_ on the [FlutterView] itself
+  /// change their values. To access the property values of a [FlutterView]
+  /// prefer using the access methods on [MediaQuery], such as
+  /// [MediaQuery.sizeOf], which will ensure that the `context` is informed when
+  /// the view properties change.
+  ///
+  /// See also:
+  ///
+  ///  * [View.maybeOf], which throws instead of returning null if no
+  ///    [FlutterView] is found.
+  static FlutterView of(BuildContext context) {
+    return RawView.of(context);
+  }
+
+  /// ADD DOCS
+  static FocusScopeNode? viewScopeOf(BuildContext context) {
+    return viewScopeMaybeOf(context)!;
+  }
+
+  /// ADD DOCS
+  static FocusScopeNode? viewScopeMaybeOf(BuildContext context) {
+    return LookupBoundary.dependOnInheritedWidgetOfExactType<_ViewScope>(context)?.scopeNode;
+  }
+
+  /// Returns the [PipelineOwner] parent to which a child [View] should attach
+  /// its [PipelineOwner] to.
+  ///
+  /// If `context` has a [View] ancestor, it returns the [PipelineOwner]
+  /// responsible for managing the render tree of that view. If there is no
+  /// [View] ancestor, [RendererBinding.rootPipelineOwner] is returned instead.
+  static PipelineOwner pipelineOwnerOf(BuildContext context) {
+    return context.dependOnInheritedWidgetOfExactType<_PipelineOwnerScope>()?.pipelineOwner
+        ?? RendererBinding.instance.rootPipelineOwner;
+  }
+
+  @override
+  State<View> createState() => _ViewState();
+}
+
+class _ViewFocusListener extends WidgetsBindingObserver {
+  _ViewFocusListener(this.viewState);
+
+  final _ViewState viewState;
+
+  @override
+  void didChangeViewFocus(ViewFocusEvent event) {
+    viewState.viewFocusChanged(event);
+  }
+}
+
+class _ViewState extends State<View> {
+  final FocusScopeNode _scopeNode = FocusScopeNode(debugLabel: kReleaseMode ? null : 'View Scope');
+  late final _ViewFocusListener _focusListener;
+  late final FocusTraversalPolicy _policy;
+
+  @override
+  void initState() {
+    super.initState();
+    _policy = ReadingOrderTraversalPolicy();
+    _focusListener = _ViewFocusListener(this);
+    WidgetsBinding.instance.addObserver(_focusListener);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(_focusListener);
+    _scopeNode.dispose();
+    super.dispose();
+  }
+
+  void viewFocusChanged(ViewFocusEvent event) {
+    setState(() {
+      final FlutterView view = View.of(context);
+      if (event.viewId != view.viewId) {
+        return;
+      }
+      FocusNode? nextFocus;
+      switch (event.state) {
+        case ViewFocusState.focused:
+          switch (event.direction) {
+            case ViewFocusDirection.forward:
+              nextFocus = _policy.findFirstFocus(_scopeNode, ignoreCurrentFocus: true);
+            case ViewFocusDirection.backwards:
+              nextFocus = _policy.findLastFocus(_scopeNode, ignoreCurrentFocus: true);
+            case ViewFocusDirection.undefined:
+          }
+          (nextFocus ?? _scopeNode).requestFocus();
+        case ViewFocusState.unfocused:
+          // Focusing on the root scope node will "park" the focus, so that no
+          // descendant node has focus, and there's no widget that can receive
+          // keyboard events.
+          FocusManager.instance.rootScope.requestScopeFocus();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FocusTraversalGroup(
+      policy: _policy,
+      child: FocusScope(
+        debugLabel: kReleaseMode ? null : 'View Scope',
+        node: _scopeNode,
+        child: _ViewScope(
+          scopeNode: _scopeNode,
+          child: RawView(
+            view: widget.view,
+            deprecatedDoNotUseWillBeRemovedWithoutNoticePipelineOwner: widget._deprecatedPipelineOwner,
+            deprecatedDoNotUseWillBeRemovedWithoutNoticeRenderView: widget._deprecatedRenderView,
+            child: widget.child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bootstraps a render tree that is rendered into the provided [FlutterView].
+///
+/// The content rendered into that view is determined by the provided [child].
+/// Descendants within the same [LookupBoundary] can look up the view they are
+/// rendered into via [View.of] and [View.maybeOf].
+///
+/// The provided [child] is wrapped in a [MediaQuery] constructed from the given
+/// [view].
+///
+/// For most use cases, using [MediaQuery.of], or its associated "...Of" methods
+/// are a more appropriate way of obtaining the information that a [FlutterView]
+/// exposes. For example, using [MediaQuery.sizeOf] will expose the _logical_
+/// device size ([MediaQueryData.size]) rather than the physical size
+/// ([FlutterView.physicalSize]). Similarly, while [FlutterView.padding] conveys
+/// the information from the operating system, the [MediaQueryData.padding]
+/// attribute (obtained from [MediaQuery.paddingOf]) further adjusts this
+/// information to be aware of the context of the widget; e.g. the [Scaffold]
+/// widget adjusts the values for its various children.
+///
+/// Each [FlutterView] can be associated with at most one [View] widget in the
+/// widget tree. Two or more [View] widgets configured with the same
+/// [FlutterView] must never exist within the same widget tree at the same time.
+/// This limitation is enforced by a [GlobalObjectKey] that derives its identity
+/// from the [view] provided to this widget.
+///
+/// Since the [View] widget bootstraps its own independent render tree, neither
+/// it nor any of its descendants will insert a [RenderObject] into an existing
+/// render tree. Therefore, the [View] widget can only be used in those parts of
+/// the widget tree where it is not required to participate in the construction
+/// of the surrounding render tree. In other words, the widget may only be used
+/// in a non-rendering zone of the widget tree (see [WidgetsBinding] for a
+/// definition of rendering and non-rendering zones).
+///
+/// In practical terms, the widget is typically used at the root of the widget
+/// tree outside of any other [View] widget, as a child of a [ViewCollection]
+/// widget, or in the [ViewAnchor.view] slot of a [ViewAnchor] widget. It is not
+/// required to be a direct child, though, since other non-[RenderObjectWidget]s
+/// (e.g. [InheritedWidget]s, [Builder]s, or [StatefulWidget]s/[StatelessWidget]
+/// that only produce non-[RenderObjectWidget]s) are allowed to be present
+/// between those widgets and the [View] widget.
+///
+/// See also:
+///
+///  * [Element.debugExpectsRenderObjectForSlot], which defines whether a [View]
+///    widget is allowed in a given child slot.
+class RawView extends StatelessWidget {
+  /// Create a [View] widget to bootstrap a render tree that is rendered into
+  /// the provided [FlutterView].
+  ///
+  /// The content rendered into that [view] is determined by the given [child]
+  /// widget.
+  RawView({
+    super.key,
+    required this.view,
+    @Deprecated(
+      'Do not use. '
+      'This parameter only exists to implement the deprecated RendererBinding.pipelineOwner property until it is removed. '
+      'This feature was deprecated after v3.10.0-12.0.pre.'
+    )
+    PipelineOwner? deprecatedDoNotUseWillBeRemovedWithoutNoticePipelineOwner,
+    @Deprecated(
+      'Do not use. '
+      'This parameter only exists to implement the deprecated RendererBinding.renderView property until it is removed. '
+      'This feature was deprecated after v3.10.0-12.0.pre.'
+    )
+    RenderView? deprecatedDoNotUseWillBeRemovedWithoutNoticeRenderView,
+    required this.child,
+  }) : _deprecatedPipelineOwner = deprecatedDoNotUseWillBeRemovedWithoutNoticePipelineOwner,
+       _deprecatedRenderView = deprecatedDoNotUseWillBeRemovedWithoutNoticeRenderView,
+       assert((deprecatedDoNotUseWillBeRemovedWithoutNoticePipelineOwner == null) == (deprecatedDoNotUseWillBeRemovedWithoutNoticeRenderView == null)),
+       assert(deprecatedDoNotUseWillBeRemovedWithoutNoticeRenderView == null || deprecatedDoNotUseWillBeRemovedWithoutNoticeRenderView.flutterView == view);
+
+  /// The [FlutterView] into which [child] is drawn.
+  final FlutterView view;
+
+  /// The widget below this widget in the tree, which will be drawn into the
+  /// [view].
+  ///
+  /// {@macro flutter.widgets.ProxyWidget.child}
+  final Widget child;
+
+  final PipelineOwner? _deprecatedPipelineOwner;
+  final RenderView? _deprecatedRenderView;
+
+  /// Returns the [FlutterView] that the provided `context` will render into.
+  ///
+  /// Returns null if the `context` is not associated with a [FlutterView].
+  ///
+  /// The method creates a dependency on the `context`, which will be informed
+  /// when the identity of the [FlutterView] changes (i.e. the `context` is
+  /// moved to render into a different [FlutterView] then before). The context
+  /// will not be informed when the _properties_ on the [FlutterView] itself
+  /// change their values. To access the property values of a [FlutterView] it
+  /// is best practice to use [MediaQuery.maybeOf] instead, which will ensure
+  /// that the `context` is informed when the view properties change.
+  ///
+  /// See also:
+  ///
+  ///  * [View.of], which throws instead of returning null if no [FlutterView]
+  ///    is found.
+  static FlutterView? maybeOf(BuildContext context) {
+    return LookupBoundary.dependOnInheritedWidgetOfExactType<_RawViewScope>(context)?.view;
   }
 
   /// Returns the [FlutterView] that the provided `context` will render into.
@@ -137,7 +369,7 @@ class View extends StatelessWidget {
     final FlutterView? result = maybeOf(context);
     assert(() {
       if (result == null) {
-        final bool hiddenByBoundary = LookupBoundary.debugIsHidingAncestorWidgetOfExactType<_ViewScope>(context);
+        final bool hiddenByBoundary = LookupBoundary.debugIsHidingAncestorWidgetOfExactType<_RawViewScope>(context);
         final List<DiagnosticsNode> information = <DiagnosticsNode>[
           if (hiddenByBoundary) ...<DiagnosticsNode>[
             ErrorSummary('View.of() was called with a context that does not have access to a View widget.'),
@@ -172,12 +404,12 @@ class View extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _RawView(
+    return _InternalRawView(
       view: view,
       deprecatedPipelineOwner: _deprecatedPipelineOwner,
       deprecatedRenderView: _deprecatedRenderView,
       builder: (BuildContext context, PipelineOwner owner) {
-        return _ViewScope(
+        return _RawViewScope(
           view: view,
           child: _PipelineOwnerScope(
             pipelineOwner: owner,
@@ -192,16 +424,16 @@ class View extends StatelessWidget {
   }
 }
 
-/// A builder for the content [Widget] of a [_RawView].
+/// A builder for the content [Widget] of a [_InternalRawView].
 ///
 /// The widget returned by the builder defines the content that is drawn into
-/// the [FlutterView] configured on the [_RawView].
+/// the [FlutterView] configured on the [_InternalRawView].
 ///
-/// The builder is given the [PipelineOwner] that the [_RawView] uses to manage
+/// The builder is given the [PipelineOwner] that the [_InternalRawView] uses to manage
 /// its render tree. Typical builder implementations make that pipeline owner
 /// available as an attachment point for potential child views.
 ///
-/// Used by [_RawView.builder].
+/// Used by [_InternalRawView.builder].
 typedef _RawViewContentBuilder = Widget Function(BuildContext context, PipelineOwner owner);
 
 /// The workhorse behind the [View] widget that actually bootstraps a render
@@ -213,13 +445,13 @@ typedef _RawViewContentBuilder = Widget Function(BuildContext context, PipelineO
 /// the surrounding parent [PipelineOwner] obtained with [View.pipelineOwnerOf].
 /// This ensures that the render tree bootstrapped by this widget participates
 /// properly in frame production and hit testing.
-class _RawView extends RenderObjectWidget {
+class _InternalRawView extends RenderObjectWidget {
   /// Create a [RawView] widget to bootstrap a render tree that is rendered into
   /// the provided [FlutterView].
   ///
   /// The content rendered into that [view] is determined by the [Widget]
   /// returned by [builder].
-  _RawView({
+  _InternalRawView({
     required this.view,
     required PipelineOwner? deprecatedPipelineOwner,
     required RenderView? deprecatedRenderView,
@@ -266,7 +498,7 @@ class _RawViewElement extends RenderTreeRootElement {
     onSemanticsOwnerDisposed: _handleSemanticsOwnerDisposed,
   );
 
-  PipelineOwner get _effectivePipelineOwner => (widget as _RawView)._deprecatedPipelineOwner ?? _pipelineOwner;
+  PipelineOwner get _effectivePipelineOwner => (widget as _InternalRawView)._deprecatedPipelineOwner ?? _pipelineOwner;
 
   void _handleSemanticsOwnerCreated() {
     (_effectivePipelineOwner.rootNode as RenderView?)?.scheduleInitialSemantics();
@@ -277,7 +509,7 @@ class _RawViewElement extends RenderTreeRootElement {
   }
 
   void _handleSemanticsUpdate(SemanticsUpdate update) {
-    (widget as _RawView).view.updateSemantics(update);
+    (widget as _InternalRawView).view.updateSemantics(update);
   }
 
   @override
@@ -287,7 +519,7 @@ class _RawViewElement extends RenderTreeRootElement {
 
   void _updateChild() {
     try {
-      final Widget child = (widget as _RawView).builder(this, _effectivePipelineOwner);
+      final Widget child = (widget as _InternalRawView).builder(this, _effectivePipelineOwner);
       _child = updateChild(_child, child, null);
     } catch (e, stack) {
       final FlutterErrorDetails details = FlutterErrorDetails(
@@ -373,7 +605,7 @@ class _RawViewElement extends RenderTreeRootElement {
   }
 
   @override
-  void update(_RawView newWidget) {
+  void update(_InternalRawView newWidget) {
     super.update(newWidget);
     _updateChild();
   }
@@ -413,20 +645,29 @@ class _RawViewElement extends RenderTreeRootElement {
 
   @override
   void unmount() {
-    if (_effectivePipelineOwner != (widget as _RawView)._deprecatedPipelineOwner) {
+    if (_effectivePipelineOwner != (widget as _InternalRawView)._deprecatedPipelineOwner) {
       _effectivePipelineOwner.dispose();
     }
     super.unmount();
   }
 }
 
-class _ViewScope extends InheritedWidget {
-  const _ViewScope({required this.view, required super.child});
+class _RawViewScope extends InheritedWidget {
+  const _RawViewScope({required this.view, required super.child});
 
   final FlutterView? view;
 
   @override
-  bool updateShouldNotify(_ViewScope oldWidget) => view != oldWidget.view;
+  bool updateShouldNotify(_RawViewScope oldWidget) => view != oldWidget.view;
+}
+
+class _ViewScope extends InheritedWidget {
+  const _ViewScope({required this.scopeNode, required super.child});
+
+  final FocusScopeNode? scopeNode;
+
+  @override
+  bool updateShouldNotify(_ViewScope oldWidget) => scopeNode != oldWidget.scopeNode;
 }
 
 class _PipelineOwnerScope extends InheritedWidget {
@@ -539,7 +780,7 @@ class ViewAnchor extends StatelessWidget {
     return _MultiChildComponentWidget(
       views: <Widget>[
         if (view != null)
-          _ViewScope(
+          _RawViewScope(
             view: null,
             child: view!,
           ),

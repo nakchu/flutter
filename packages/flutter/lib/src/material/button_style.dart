@@ -308,7 +308,7 @@ class ButtonStyle with Diagnosticable {
   /// Always defaults to [Alignment.center].
   final AlignmentGeometry? alignment;
 
-  /// Creates the [InkWell] splash factory, which defines the appearance of
+  /// Creates the [InkWell] splash facory, which defines the appearance of
   /// "ink" splashes that occur in response to taps.
   ///
   /// Use [NoSplash.splashFactory] to defeat ink splash rendering. For example:

@@ -4,7 +4,8 @@
 
 import 'dart:async';
 import 'dart:developer' as developer;
-import 'dart:ui' show AccessibilityFeatures, AppExitResponse, AppLifecycleState, FrameTiming, Locale, PlatformDispatcher, TimingsCallback;
+import 'dart:ui' show AccessibilityFeatures, AppExitResponse, AppLifecycleState,
+  FrameTiming, Locale, PlatformDispatcher, TimingsCallback, ViewFocusEvent;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -269,6 +270,8 @@ abstract mixin class WidgetsBindingObserver {
   ///  * [AppLifecycleListener], an alternative API for responding to
   ///    application lifecycle changes.
   void didChangeAppLifecycleState(AppLifecycleState state) { }
+
+  void didChangeViewFocus(ViewFocusEvent event) { }
 
   /// Called when a request is received from the system to exit the application.
   ///
@@ -828,6 +831,14 @@ mixin WidgetsBinding on BindingBase, ServicesBinding, SchedulerBinding, GestureB
     super.handleAppLifecycleStateChanged(state);
     for (final WidgetsBindingObserver observer in List<WidgetsBindingObserver>.of(_observers)) {
       observer.didChangeAppLifecycleState(state);
+    }
+  }
+
+  @override
+  void handleViewFocusChanged(ViewFocusEvent event) {
+    super.handleViewFocusChanged(event);
+    for (final WidgetsBindingObserver observer in List<WidgetsBindingObserver>.of(_observers)) {
+      observer.didChangeViewFocus(event);
     }
   }
 
