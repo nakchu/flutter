@@ -141,16 +141,6 @@ class View extends StatefulWidget {
     return RawView.of(context);
   }
 
-  /// ADD DOCS
-  static FocusScopeNode? viewScopeOf(BuildContext context) {
-    return viewScopeMaybeOf(context)!;
-  }
-
-  /// ADD DOCS
-  static FocusScopeNode? viewScopeMaybeOf(BuildContext context) {
-    return LookupBoundary.dependOnInheritedWidgetOfExactType<_ViewScope>(context)?.scopeNode;
-  }
-
   /// Returns the [PipelineOwner] parent to which a child [View] should attach
   /// its [PipelineOwner] to.
   ///
@@ -178,7 +168,10 @@ class _ViewFocusListener extends WidgetsBindingObserver {
 }
 
 class _ViewState extends State<View> {
-  final FocusScopeNode _scopeNode = FocusScopeNode(debugLabel: kReleaseMode ? null : 'View Scope');
+  final FocusScopeNode _scopeNode = FocusScopeNode(
+    skipTraversal: true,
+    debugLabel: kReleaseMode ? null : 'View Scope',
+  );
   late final _ViewFocusListener _focusListener;
   late final FocusTraversalPolicy _policy;
 
@@ -230,14 +223,11 @@ class _ViewState extends State<View> {
       child: FocusScope(
         debugLabel: kReleaseMode ? null : 'View Scope',
         node: _scopeNode,
-        child: _ViewScope(
-          scopeNode: _scopeNode,
-          child: RawView(
-            view: widget.view,
-            deprecatedDoNotUseWillBeRemovedWithoutNoticePipelineOwner: widget._deprecatedPipelineOwner,
-            deprecatedDoNotUseWillBeRemovedWithoutNoticeRenderView: widget._deprecatedRenderView,
-            child: widget.child,
-          ),
+        child: RawView(
+          view: widget.view,
+          deprecatedDoNotUseWillBeRemovedWithoutNoticePipelineOwner: widget._deprecatedPipelineOwner,
+          deprecatedDoNotUseWillBeRemovedWithoutNoticeRenderView: widget._deprecatedRenderView,
+          child: widget.child,
         ),
       ),
     );
@@ -659,15 +649,6 @@ class _RawViewScope extends InheritedWidget {
 
   @override
   bool updateShouldNotify(_RawViewScope oldWidget) => view != oldWidget.view;
-}
-
-class _ViewScope extends InheritedWidget {
-  const _ViewScope({required this.scopeNode, required super.child});
-
-  final FocusScopeNode? scopeNode;
-
-  @override
-  bool updateShouldNotify(_ViewScope oldWidget) => scopeNode != oldWidget.scopeNode;
 }
 
 class _PipelineOwnerScope extends InheritedWidget {
