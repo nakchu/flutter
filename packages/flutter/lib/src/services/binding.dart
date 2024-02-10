@@ -361,6 +361,15 @@ mixin ServicesBinding on BindingBase, SchedulerBinding {
     return;
   }
 
+  /// Called whenever the [PlatformDispatcher] receives a notification that the
+  /// focus state on a view has changed.
+  ///
+  /// The [event] contains the view ID for the view that changed its focus
+  /// state.
+  ///
+  /// See also:
+  ///
+  /// * [PlatformDispatcher.onViewFocusChange], which calls this method.
   @protected
   @mustCallSuper
   void handleViewFocusChanged(ui.ViewFocusEvent event) {}

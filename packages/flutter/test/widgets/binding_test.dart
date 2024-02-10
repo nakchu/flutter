@@ -77,6 +77,12 @@ class RentrantObserver implements WidgetsBindingObserver {
   }
 
   @override
+  void didChangeViewFocus(ViewFocusEvent event) {
+    assert(active);
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
   void didChangeLocales(List<Locale>? locales) {
     assert(active);
     WidgetsBinding.instance.addObserver(this);

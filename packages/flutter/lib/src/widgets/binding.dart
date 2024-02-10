@@ -271,6 +271,14 @@ abstract mixin class WidgetsBindingObserver {
   ///    application lifecycle changes.
   void didChangeAppLifecycleState(AppLifecycleState state) { }
 
+  /// Called whenever the [PlatformDispatcher] receives a notification that the
+  /// focus state on a view has changed.
+  ///
+  /// The [event] contains the view ID for the view that changed its focus
+  /// state.
+  ///
+  /// The view id of the [FlutterView] in which a particular [BuildContext]
+  /// resides can be retrieved with `View.of(context).viewId`.
   void didChangeViewFocus(ViewFocusEvent event) { }
 
   /// Called when a request is received from the system to exit the application.

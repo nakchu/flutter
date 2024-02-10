@@ -250,11 +250,11 @@ class _ViewState extends State<View> {
 ///
 /// See also:
 ///
-///  * [View], which wraps a [RawView] with a [FocusScope].
-///  * [Element.debugExpectsRenderObjectForSlot], which defines whether a [View]
-///    widget is allowed in a given child slot.
+/// * [View], which wraps a [RawView] with a [FocusScope].
+/// * [Element.debugExpectsRenderObjectForSlot], which defines whether a
+///   [RawView] widget is allowed in a given child slot.
 class RawView extends StatelessWidget {
-  /// Create a [View] widget to bootstrap a render tree that is rendered into
+  /// Create a [RawView] widget to bootstrap a render tree that is rendered into
   /// the provided [FlutterView].
   ///
   /// The content rendered into that [view] is determined by the given [child]
@@ -306,7 +306,7 @@ class RawView extends StatelessWidget {
   ///
   /// See also:
   ///
-  ///  * [View.maybeOf], which throws instead of returning null if no
+  ///  * [RawView.maybeOf], which throws instead of returning null if no
   ///    [FlutterView] is found.
   static FlutterView of(BuildContext context) {
     final FlutterView? result = maybeOf(context);
@@ -374,15 +374,15 @@ class RawView extends StatelessWidget {
 /// Used by [_InternalRawView.builder].
 typedef _RawViewContentBuilder = Widget Function(BuildContext context, PipelineOwner owner);
 
-/// The workhorse behind the [View] widget that actually bootstraps a render
+/// The workhorse behind the [RawView] widget that actually bootstraps a render
 /// tree.
 ///
 /// It instantiates the [RenderView] as the root of that render tree and adds it
 /// to the [RendererBinding] via [RendererBinding.addRenderView]. It also owns
 /// the [PipelineOwner] that manages this render tree and adds it as a child to
-/// the surrounding parent [PipelineOwner] obtained with [View.pipelineOwnerOf].
-/// This ensures that the render tree bootstrapped by this widget participates
-/// properly in frame production and hit testing.
+/// the surrounding parent [PipelineOwner] obtained with
+/// [RawView.pipelineOwnerOf]. This ensures that the render tree bootstrapped by
+/// this widget participates properly in frame production and hit testing.
 class _InternalRawView extends RenderObjectWidget {
   /// Create a [RawView] widget to bootstrap a render tree that is rendered into
   /// the provided [FlutterView].
