@@ -102,7 +102,7 @@ void main() {
                 controller: controller,
                 alignmentOffset: alignmentOffset,
                 consumeOutsideTap: consumesOutsideTap,
-                style: MenuStyle(alignment: alignment),
+                style: MenuStyle(alignment: alignment, animationStyle: AnimationStyle.noAnimation),
                 onOpen: () {
                   onOpen?.call(TestMenu.anchorButton);
                 },
@@ -1639,6 +1639,9 @@ void main() {
                 height: 1000,
                 alignment: Alignment.topLeft,
                 child: MenuAnchor(
+                  style: MenuStyle(
+                    animationStyle: AnimationStyle.noAnimation,
+                  ),
                   controller: controller,
                   alignmentOffset: const Offset(0, 10),
                   builder: (BuildContext context, MenuController controller, Widget? child) {
@@ -2372,6 +2375,9 @@ void main() {
           child: Center(
             child: MenuAnchor(
               controller: controller,
+              style: MenuStyle(
+                animationStyle: AnimationStyle.noAnimation,
+              ),
               menuChildren: <Widget>[
                 MenuItemButton(
                   onPressed: () {},
@@ -2609,6 +2615,9 @@ void main() {
           home: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
               return MenuAnchor(
+                style: MenuStyle(
+                  animationStyle: AnimationStyle.noAnimation,
+                ),
                 menuChildren: <Widget>[
                   MenuItemButton(
                     focusNode: buttonFocusNode,
@@ -2697,6 +2706,7 @@ void main() {
     });
 
     testWidgets('constrained menus show up in the right place with offset in LTR', (WidgetTester tester) async {
+      final MenuStyle menuStyle = MenuStyle(animationStyle: AnimationStyle.noAnimation);
       await changeSurfaceSize(tester, const Size(800, 600));
       await tester.pumpWidget(
         MaterialApp(
@@ -2708,27 +2718,32 @@ void main() {
                 child: Align(
                   alignment: Alignment.topLeft,
                   child: MenuAnchor(
-                    menuChildren: const <Widget>[
+                    style: menuStyle,
+                    menuChildren: <Widget>[
                       SubmenuButton(
-                        alignmentOffset: Offset(10, 0),
+                        menuStyle: menuStyle,
+                        alignmentOffset: const Offset(10, 0),
                         menuChildren: <Widget>[
                           SubmenuButton(
+                            menuStyle: menuStyle,
                             menuChildren: <Widget>[
                               SubmenuButton(
+                                menuStyle: menuStyle,
                                 alignmentOffset: Offset(10, 0),
                                 menuChildren: <Widget>[
                                   SubmenuButton(
+                                    menuStyle: menuStyle,
                                     menuChildren: <Widget>[],
-                                    child: Text('SubMenuButton4'),
+                                    child: const Text('SubMenuButton4'),
                                   ),
                                 ],
-                                child: Text('SubMenuButton3'),
+                                child: const Text('SubMenuButton3'),
                               ),
                             ],
-                            child: Text('SubMenuButton2'),
+                            child: const Text('SubMenuButton2'),
                           ),
                         ],
-                        child: Text('SubMenuButton1'),
+                        child: const Text('SubMenuButton1'),
                       ),
                     ],
                     builder: (BuildContext context, MenuController controller, Widget? child) {
@@ -2774,6 +2789,7 @@ void main() {
     });
 
     testWidgets('constrained menus show up in the right place with offset in RTL', (WidgetTester tester) async {
+      final MenuStyle menuStyle = MenuStyle(animationStyle: AnimationStyle.noAnimation);
       await changeSurfaceSize(tester, const Size(800, 600));
       await tester.pumpWidget(
         MaterialApp(
@@ -2785,27 +2801,32 @@ void main() {
                 child: Align(
                   alignment: Alignment.topRight,
                   child: MenuAnchor(
-                    menuChildren: const <Widget>[
+                    style: menuStyle,
+                    menuChildren: <Widget>[
                       SubmenuButton(
-                        alignmentOffset: Offset(10, 0),
+                        menuStyle: menuStyle,
+                        alignmentOffset: const Offset(10, 0),
                         menuChildren: <Widget>[
                           SubmenuButton(
+                            menuStyle: menuStyle,
                             menuChildren: <Widget>[
                               SubmenuButton(
-                                alignmentOffset: Offset(10, 0),
+                                menuStyle: menuStyle,
+                                alignmentOffset: const Offset(10, 0),
                                 menuChildren: <Widget>[
                                   SubmenuButton(
-                                    menuChildren: <Widget>[],
-                                    child: Text('SubMenuButton4'),
+                                    menuStyle: menuStyle,
+                                    menuChildren: const <Widget>[],
+                                    child: const Text('SubMenuButton4'),
                                   ),
                                 ],
-                                child: Text('SubMenuButton3'),
+                                child: const Text('SubMenuButton3'),
                               ),
                             ],
-                            child: Text('SubMenuButton2'),
+                            child: const Text('SubMenuButton2'),
                           ),
                         ],
-                        child: Text('SubMenuButton1'),
+                        child: const Text('SubMenuButton1'),
                       ),
                     ],
                     builder: (BuildContext context, MenuController controller, Widget? child) {
@@ -2862,6 +2883,9 @@ void main() {
                 child: Align(
                   alignment: Alignment.bottomLeft,
                   child: MenuAnchor(
+                    style: MenuStyle(
+                      animationStyle: AnimationStyle.noAnimation,
+                    ),
                     menuChildren: const <Widget>[
                       MenuItemButton(
                         child: Text('Button1'),
@@ -2914,6 +2938,7 @@ void main() {
                 child: Align(
                   alignment: Alignment.bottomLeft,
                   child: MenuAnchor(
+                    style: MenuStyle(animationStyle: AnimationStyle.noAnimation),
                     alignmentOffset: const Offset(0, 50),
                     menuChildren: const <Widget>[
                       MenuItemButton(
@@ -3171,6 +3196,7 @@ void main() {
               return MenuBar(
                 children: <Widget>[
                   SubmenuButton(
+                    menuStyle: MenuStyle(animationStyle: AnimationStyle.noAnimation),
                     menuChildren: <Widget>[
                       CheckboxMenuButton(
                         value: checkBoxValue,
@@ -3225,6 +3251,7 @@ void main() {
               return MenuBar(
                 children: <Widget>[
                   SubmenuButton(
+                    menuStyle: MenuStyle(animationStyle: AnimationStyle.noAnimation),
                     menuChildren: <Widget>[
                       RadioMenuButton<int>(
                         value: 0,
@@ -3620,6 +3647,9 @@ List<Widget> createTestMenus({
     required List<Widget> menuChildren,
   }) {
     return SubmenuButton(
+      menuStyle: MenuStyle(
+        animationStyle: AnimationStyle.noAnimation,
+      ),
       onOpen: onOpen != null ? () => onOpen(menu) : null,
       onClose: onClose != null ? () => onClose(menu) : null,
       menuChildren: menuChildren,
