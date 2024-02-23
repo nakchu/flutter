@@ -1020,7 +1020,11 @@ void main() {
   });
 
   testWidgets('The controller can access the value in the input field', (WidgetTester tester) async {
-    final ThemeData themeData = ThemeData();
+    final ThemeData themeData = ThemeData(
+      dropdownMenuTheme: DropdownMenuThemeData(
+        menuStyle: MenuStyle(animationStyle: AnimationStyle.noAnimation),
+      )
+    );
     final TextEditingController controller = TextEditingController();
     addTearDown(controller.dispose);
 
@@ -1271,7 +1275,13 @@ void main() {
 
   testWidgets('If requestFocusOnTap is true, the text input field can request focus, '
     'otherwise it cannot request focus', (WidgetTester tester) async {
-    final ThemeData themeData = ThemeData();
+    final ThemeData themeData = ThemeData(
+      dropdownMenuTheme: DropdownMenuThemeData(
+        menuStyle: MenuStyle(
+          animationStyle: AnimationStyle.noAnimation,
+        )
+      )
+    );
 
     Widget buildDropdownMenu({required bool requestFocusOnTap}) => MaterialApp(
       theme: themeData,
@@ -1811,7 +1821,18 @@ void main() {
       (WidgetTester tester) async {
     int selectionCount = 0;
 
-    final ThemeData themeData = ThemeData();
+    final ThemeData themeData = ThemeData(
+      menuTheme: MenuThemeData(
+        style: MenuStyle(
+          animationStyle: AnimationStyle.noAnimation,
+        )
+      ),
+      dropdownMenuTheme: DropdownMenuThemeData(
+        menuStyle: MenuStyle(
+          animationStyle: AnimationStyle.noAnimation,
+        )
+      )
+    );
     final List<DropdownMenuEntry<TestMenu>> menuWithDisabledItems = <DropdownMenuEntry<TestMenu>>[
       const DropdownMenuEntry<TestMenu>(value: TestMenu.mainMenu0, label: 'Item 0'),
     ];
@@ -1862,7 +1883,13 @@ void main() {
       (WidgetTester tester) async {
     int selectionCount = 0;
 
-    final ThemeData themeData = ThemeData();
+    final ThemeData themeData = ThemeData(
+      dropdownMenuTheme: DropdownMenuThemeData(
+        menuStyle: MenuStyle(
+          animationStyle: AnimationStyle.noAnimation,
+        )
+      )
+    );
     final List<DropdownMenuEntry<TestMenu>> menuWithDisabledItems = <DropdownMenuEntry<TestMenu>>[
       const DropdownMenuEntry<TestMenu>(value: TestMenu.mainMenu0, label: 'Item 0'),
     ];
@@ -1872,6 +1899,9 @@ void main() {
       home: StatefulBuilder(builder: (BuildContext context, StateSetter setState) {
         return Scaffold(
           body: MenuAnchor(
+            style: MenuStyle(
+              animationStyle: AnimationStyle.noAnimation,
+            ),
             menuChildren: <Widget>[
               DropdownMenu<TestMenu>(
                 dropdownMenuEntries: menuWithDisabledItems,
