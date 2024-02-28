@@ -317,7 +317,7 @@ class _MenuAnchorState extends State<MenuAnchor> with TickerProviderStateMixin {
     }
     _menuController._attach(this);
     _animateController = AnimationController(
-      duration: const Duration(milliseconds: 200),
+      duration: const Duration(milliseconds: 500),
       vsync: this,
     );
     _menuAnimation = CurvedAnimation(
@@ -595,7 +595,7 @@ _MenuAnchorState? get _previousFocusableSibling {
   ///
   /// Call this when the menu should be closed. Has no effect if the menu is
   /// already closed.
-  void _close({bool inDispose = false}) {
+  Future<void> _close({bool inDispose = false}) async {
     assert(_debugMenuInfo('Closing $this'));
     if (!_isOpen) {
       return;
@@ -617,6 +617,7 @@ _MenuAnchorState? get _previousFocusableSibling {
       // Notify that _childIsOpen changed state, but only if not
       // currently disposing.
       _parent?._childChangedOpenState();
+      await _animateController.reverse();
       widget.onClose?.call();
       if (mounted && SchedulerBinding.instance.schedulerPhase != SchedulerPhase.persistentCallbacks) {
         setState(() {
@@ -3987,9 +3988,9 @@ class _MenuDefaultsM3 extends MenuStyle {
     return switch (Theme.of(context).platform) {
       TargetPlatform.iOS || TargetPlatform.android || TargetPlatform.fuchsia
         => AnimationStyle(
-          curve: Curves.easeIn,
-          reverseCurve: Curves.easeOut,
-          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOutCubicEmphasized,
+          reverseCurve: Curves.easeInOutCubicEmphasized.flipped,
+          duration: const Duration(milliseconds: 500),
         ),
       TargetPlatform.macOS || TargetPlatform.linux || TargetPlatform.windows
         => AnimationStyle.noAnimation,
