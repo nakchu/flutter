@@ -306,7 +306,8 @@ class _MenuAnchorState extends State<MenuAnchor> with TickerProviderStateMixin {
   bool get _isTopLevel => _parent?._isRoot ?? false;
   MenuController get _menuController => widget.controller ?? _internalMenuController!;
   late AnimationController _animateController;
-  late CurvedAnimation _menuAnimation;
+  late CurvedAnimation _menuSize;
+  late CurvedAnimation _menuOpacity;
 
   @override
   void initState() {
@@ -320,9 +321,14 @@ class _MenuAnchorState extends State<MenuAnchor> with TickerProviderStateMixin {
       duration: const Duration(milliseconds: 500),
       vsync: this,
     );
-    _menuAnimation = CurvedAnimation(
+    _menuSize = CurvedAnimation(
       parent: _animateController,
       curve: Curves.linear,
+    );
+    _menuOpacity = CurvedAnimation(
+      parent: _animateController,
+      curve: const Interval(0, 0.2),
+      reverseCurve: const Interval(0, 0.1).flipped,
     );
   }
 
@@ -389,8 +395,8 @@ class _MenuAnchorState extends State<MenuAnchor> with TickerProviderStateMixin {
 
     _animateController.duration = effectiveAnimationStyle.duration;
     _animateController.reverseDuration = effectiveAnimationStyle.reverseDuration;
-    _menuAnimation.curve = effectiveAnimationStyle.curve ?? _menuAnimation.curve;
-    _menuAnimation.reverseCurve = effectiveAnimationStyle.reverseCurve;
+    _menuSize.curve = effectiveAnimationStyle.curve ?? _menuSize.curve;
+    _menuSize.reverseCurve = effectiveAnimationStyle.reverseCurve;
   }
 
   @override
@@ -400,7 +406,8 @@ class _MenuAnchorState extends State<MenuAnchor> with TickerProviderStateMixin {
       overlayChildBuilder: (BuildContext context) {
        return _Submenu(
           anchor: this,
-          menuAnimation: _menuAnimation,
+          menuSize: _menuSize,
+          menuOpacity: _menuOpacity,
           menuStyle: widget.style,
           alignmentOffset: widget.alignmentOffset ?? Offset.zero,
           menuPosition: _menuPosition,
@@ -440,7 +447,7 @@ class _MenuAnchorState extends State<MenuAnchor> with TickerProviderStateMixin {
         NextFocusIntent: _MenuNextFocusAction(),
         DismissIntent: DismissMenuAction(controller: _menuController),
       },
-      child:  Builder(
+      child: Builder(
         key: _anchorKey,
         builder: (BuildContext context) {
           return widget.builder?.call(context, _menuController, widget.child)
@@ -3353,7 +3360,8 @@ class _MenuLayout extends SingleChildLayoutDelegate {
 class _MenuPanel extends StatefulWidget {
   const _MenuPanel({
     required this.menuStyle,
-    this.menuAnimation,
+    this.menuSize,
+    this.menuOpacity,
     this.clipBehavior = Clip.none,
     required this.orientation,
     this.crossAxisUnconstrained = true,
@@ -3363,7 +3371,9 @@ class _MenuPanel extends StatefulWidget {
   /// The menu style that has all the attributes for this menu panel.
   final MenuStyle? menuStyle;
 
-  final Animation<double>? menuAnimation;
+  final Animation<double>? menuSize;
+
+  final Animation<double>? menuOpacity;
 
   /// {@macro flutter.material.Material.clipBehavior}
   ///
@@ -3508,19 +3518,22 @@ class _MenuPanelState extends State<_MenuPanel> {
       );
     }
 
-    if (widget.menuAnimation == null) {
+    if (widget.menuSize == null || widget.menuOpacity == null) {
       return ConstrainedBox(
         constraints: effectiveConstraints,
         child: menuPanel,
       );
     }
     return SizeTransition(
-      sizeFactor: widget.menuAnimation!,
+      sizeFactor: widget.menuSize!,
       axisAlignment: -1,
       fixedCrossAxisSizeFactor: 1,
-      child: ConstrainedBox(
-        constraints: effectiveConstraints,
-        child: menuPanel,
+      child: FadeTransition(
+        opacity: widget.menuOpacity!,
+        child: ConstrainedBox(
+          constraints: effectiveConstraints,
+          child: menuPanel,
+        ),
       ),
     );
   }
@@ -3536,7 +3549,8 @@ class _MenuPanelState extends State<_MenuPanel> {
 // A widget that defines the menu drawn in the overlay.
 class _Submenu extends StatelessWidget {
   const _Submenu({
-    required this.menuAnimation,
+    required this.menuSize,
+    required this.menuOpacity,
     required this.anchor,
     required this.menuStyle,
     required this.menuPosition,
@@ -3547,7 +3561,8 @@ class _Submenu extends StatelessWidget {
   });
 
   final _MenuAnchorState anchor;
-  final Animation<double> menuAnimation;
+  final Animation<double> menuSize;
+  final Animation<double> menuOpacity;
   final MenuStyle? menuStyle;
   final Offset? menuPosition;
   final Offset alignmentOffset;
@@ -3638,7 +3653,8 @@ class _Submenu extends StatelessWidget {
                   child: Shortcuts(
                     shortcuts: _kMenuTraversalShortcuts,
                     child: _MenuPanel(
-                      menuAnimation: menuAnimation,
+                      menuSize: menuSize,
+                      menuOpacity: menuOpacity,
                       menuStyle: menuStyle,
                       clipBehavior: clipBehavior,
                       orientation: anchor._orientation,
