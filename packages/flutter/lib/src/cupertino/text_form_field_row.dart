@@ -102,6 +102,7 @@ class CupertinoTextFormFieldRow extends FormField<String> {
   CupertinoTextFormFieldRow({
     super.key,
     this.prefix,
+    this.suffix,
     this.padding,
     this.controller,
     String? initialValue,
@@ -230,6 +231,7 @@ class CupertinoTextFormFieldRow extends FormField<String> {
                 placeholder: placeholder,
                 placeholderStyle: placeholderStyle,
                 contextMenuBuilder: contextMenuBuilder,
+                suffix: suffix,
               ),
             );
           },
@@ -241,6 +243,9 @@ class CupertinoTextFormFieldRow extends FormField<String> {
   /// guidelines encourage passing a [Text] widget to [prefix] to detail the
   /// nature of the input.
   final Widget? prefix;
+
+  /// An optional [Widget] that is displayed at the end of the row.
+  final Widget? suffix;
 
   /// Content padding for the row.
   ///
