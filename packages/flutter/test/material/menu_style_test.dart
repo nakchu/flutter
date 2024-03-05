@@ -59,7 +59,7 @@ void main() {
                     data: MenuThemeData(
                       style: MenuStyle(
                         fixedSize: const MaterialStatePropertyAll<Size>(Size(100, 100)),
-                        animationStyle: AnimationStyle.noAnimation,
+                        sizeAnimationStyle: AnimationStyle.noAnimation,
                       ),
                     ),
                     child: MenuBar(
@@ -105,7 +105,7 @@ void main() {
                     data: MenuThemeData(
                       style: MenuStyle(
                         maximumSize: const MaterialStatePropertyAll<Size>(Size(100, 100)),
-                        animationStyle: AnimationStyle.noAnimation,
+                        sizeAnimationStyle: AnimationStyle.noAnimation,
                       ),
                     ),
                     child: MenuBar(
@@ -149,7 +149,7 @@ void main() {
                     data: MenuThemeData(
                       style: MenuStyle(
                         minimumSize: const MaterialStatePropertyAll<Size>(Size(300, 300)),
-                        animationStyle: AnimationStyle.noAnimation,
+                        sizeAnimationStyle: AnimationStyle.noAnimation,
                       ),
                     ),
                     child: MenuBar(

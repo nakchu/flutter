@@ -1022,7 +1022,7 @@ void main() {
   testWidgets('The controller can access the value in the input field', (WidgetTester tester) async {
     final ThemeData themeData = ThemeData(
       dropdownMenuTheme: DropdownMenuThemeData(
-        menuStyle: MenuStyle(animationStyle: AnimationStyle.noAnimation),
+        menuStyle: MenuStyle(sizeAnimationStyle: AnimationStyle.noAnimation),
       )
     );
     final TextEditingController controller = TextEditingController();
@@ -1093,7 +1093,7 @@ void main() {
     final ThemeData themeData = ThemeData(
       dropdownMenuTheme: DropdownMenuThemeData(
         menuStyle: MenuStyle(
-          animationStyle: AnimationStyle.noAnimation,
+          sizeAnimationStyle: AnimationStyle.noAnimation,
         )
       )
     );
@@ -1284,7 +1284,7 @@ void main() {
     final ThemeData themeData = ThemeData(
       dropdownMenuTheme: DropdownMenuThemeData(
         menuStyle: MenuStyle(
-          animationStyle: AnimationStyle.noAnimation,
+          sizeAnimationStyle: AnimationStyle.noAnimation,
         )
       )
     );
@@ -1830,12 +1830,12 @@ void main() {
     final ThemeData themeData = ThemeData(
       menuTheme: MenuThemeData(
         style: MenuStyle(
-          animationStyle: AnimationStyle.noAnimation,
+          sizeAnimationStyle: AnimationStyle.noAnimation,
         )
       ),
       dropdownMenuTheme: DropdownMenuThemeData(
         menuStyle: MenuStyle(
-          animationStyle: AnimationStyle.noAnimation,
+          sizeAnimationStyle: AnimationStyle.noAnimation,
         )
       )
     );
@@ -1892,7 +1892,7 @@ void main() {
     final ThemeData themeData = ThemeData(
       dropdownMenuTheme: DropdownMenuThemeData(
         menuStyle: MenuStyle(
-          animationStyle: AnimationStyle.noAnimation,
+          sizeAnimationStyle: AnimationStyle.noAnimation,
         )
       )
     );
@@ -1906,7 +1906,7 @@ void main() {
         return Scaffold(
           body: MenuAnchor(
             style: MenuStyle(
-              animationStyle: AnimationStyle.noAnimation,
+              sizeAnimationStyle: AnimationStyle.noAnimation,
             ),
             menuChildren: <Widget>[
               DropdownMenu<TestMenu>(
@@ -2110,7 +2110,7 @@ void main() {
         home: Scaffold(
           body: DropdownMenu<String>(
             menuStyle: MenuStyle(
-              animationStyle: AnimationStyle(
+              sizeAnimationStyle: AnimationStyle(
                 duration: const Duration(milliseconds: 500),
                 curve: Curves.linear,
               )
