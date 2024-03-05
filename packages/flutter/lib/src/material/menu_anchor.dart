@@ -54,6 +54,10 @@ const double _kLabelItemDefaultSpacing = 12;
 // shortcut label in a _MenuItemLabel.
 const double _kLabelItemMinSpacing = 4;
 
+const double _kOpacityAnimationFraction = 100 / 500;
+
+const double _kOpacityAnimationReverseFraction = 50 / 500;
+
 // Navigation shortcuts that we need to make sure are active when menus are
 // open.
 const Map<ShortcutActivator, Intent> _kMenuTraversalShortcuts = <ShortcutActivator, Intent>{
@@ -306,8 +310,8 @@ class _MenuAnchorState extends State<MenuAnchor> with TickerProviderStateMixin {
   bool get _isTopLevel => _parent?._isRoot ?? false;
   MenuController get _menuController => widget.controller ?? _internalMenuController!;
   late AnimationController _animateController;
-  late CurvedAnimation _menuSize;
-  late CurvedAnimation _menuOpacity;
+  CurvedAnimation? _menuSize;
+  CurvedAnimation? _menuOpacity;
 
   @override
   void initState() {
@@ -320,15 +324,6 @@ class _MenuAnchorState extends State<MenuAnchor> with TickerProviderStateMixin {
     _animateController = AnimationController(
       duration: const Duration(milliseconds: 500),
       vsync: this,
-    );
-    _menuSize = CurvedAnimation(
-      parent: _animateController,
-      curve: Curves.linear,
-    );
-    _menuOpacity = CurvedAnimation(
-      parent: _animateController,
-      curve: const Interval(0, 0.2),
-      reverseCurve: const Interval(0, 0.1).flipped,
     );
   }
 
@@ -383,20 +378,33 @@ class _MenuAnchorState extends State<MenuAnchor> with TickerProviderStateMixin {
       }
     }
     assert(_menuController._anchor == this);
-    if (oldWidget.style?.animationStyle != widget.style?.animationStyle) {
+    if (oldWidget.style?.sizeAnimationStyle != widget.style?.sizeAnimationStyle) {
       updateAnimation();
     }
   }
 
   void updateAnimation() {
-    final AnimationStyle effectiveAnimationStyle = widget.style?.animationStyle
-      ?? MenuTheme.of(context).style?.animationStyle
-      ?? _MenuDefaultsM3(context).animationStyle;
+    final AnimationStyle defaultAnimationStyle = _MenuDefaultsM3(context).sizeAnimationStyle;
+    final AnimationStyle effectiveAnimationStyle = widget.style?.sizeAnimationStyle
+      ?? MenuTheme.of(context).style?.sizeAnimationStyle
+      ?? defaultAnimationStyle;
 
     _animateController.duration = effectiveAnimationStyle.duration;
     _animateController.reverseDuration = effectiveAnimationStyle.reverseDuration;
-    _menuSize.curve = effectiveAnimationStyle.curve ?? _menuSize.curve;
-    _menuSize.reverseCurve = effectiveAnimationStyle.reverseCurve;
+
+    _menuSize = CurvedAnimation(
+      parent: _animateController,
+      curve: effectiveAnimationStyle.curve ?? Curves.linear,
+      reverseCurve: effectiveAnimationStyle.reverseCurve,
+    );
+
+    if (effectiveAnimationStyle == defaultAnimationStyle) {
+      _menuOpacity = CurvedAnimation(
+        parent: _animateController,
+        curve: const Interval(0, _kOpacityAnimationFraction),
+        reverseCurve: const Interval(1 - _kOpacityAnimationReverseFraction, 1.0),
+      );
+    }
   }
 
   @override
@@ -3470,7 +3478,44 @@ class _MenuPanelState extends State<_MenuPanel> {
       }
     }
 
-    Widget menuPanel = _intrinsicCrossSize(
+    Widget menuPanel = Padding(
+      padding: resolvedPadding,
+      child: ScrollConfiguration(
+        behavior: ScrollConfiguration.of(context).copyWith(
+          scrollbars: false,
+          overscroll: false,
+          physics: const ClampingScrollPhysics(),
+        ),
+        child: PrimaryScrollController(
+          controller: scrollController,
+          child: Scrollbar(
+            thumbVisibility: true,
+            child: SingleChildScrollView(
+              controller: scrollController,
+              scrollDirection: widget.orientation,
+              child: Flex(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                textDirection: Directionality.of(context),
+                direction: widget.orientation,
+                mainAxisSize: MainAxisSize.min,
+                children: widget.children,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (widget.menuSize != null) {
+      menuPanel = SizeTransition(
+        sizeFactor: widget.menuSize!,
+        axisAlignment: -1,
+        fixedCrossAxisSizeFactor: 1,
+        child: menuPanel,
+      ) ;
+    }
+
+    menuPanel = _intrinsicCrossSize(
       child: Material(
         elevation: elevation,
         shape: shape,
@@ -3479,35 +3524,16 @@ class _MenuPanelState extends State<_MenuPanel> {
         surfaceTintColor: surfaceTintColor,
         type: backgroundColor == null ? MaterialType.transparency : MaterialType.canvas,
         clipBehavior: widget.clipBehavior,
-        child: Padding(
-          padding: resolvedPadding,
-          child: ScrollConfiguration(
-            behavior: ScrollConfiguration.of(context).copyWith(
-              scrollbars: false,
-              overscroll: false,
-              physics: const ClampingScrollPhysics(),
-            ),
-            child: PrimaryScrollController(
-              controller: scrollController,
-              child: Scrollbar(
-                thumbVisibility: true,
-                child: SingleChildScrollView(
-                  controller: scrollController,
-                  scrollDirection: widget.orientation,
-                  child: Flex(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    textDirection: Directionality.of(context),
-                    direction: widget.orientation,
-                    mainAxisSize: MainAxisSize.min,
-                    children: widget.children,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+        child: menuPanel,
       ),
     );
+
+    if (widget.menuOpacity != null) {
+      menuPanel = FadeTransition(
+        opacity: widget.menuOpacity!,
+        child: menuPanel,
+      );
+    }
 
     if (widget.crossAxisUnconstrained) {
       menuPanel = UnconstrainedBox(
@@ -3518,23 +3544,9 @@ class _MenuPanelState extends State<_MenuPanel> {
       );
     }
 
-    if (widget.menuSize == null || widget.menuOpacity == null) {
-      return ConstrainedBox(
-        constraints: effectiveConstraints,
-        child: menuPanel,
-      );
-    }
-    return SizeTransition(
-      sizeFactor: widget.menuSize!,
-      axisAlignment: -1,
-      fixedCrossAxisSizeFactor: 1,
-      child: FadeTransition(
-        opacity: widget.menuOpacity!,
-        child: ConstrainedBox(
-          constraints: effectiveConstraints,
-          child: menuPanel,
-        ),
-      ),
+    return ConstrainedBox(
+      constraints: effectiveConstraints,
+      child: menuPanel,
     );
   }
 
@@ -3561,8 +3573,8 @@ class _Submenu extends StatelessWidget {
   });
 
   final _MenuAnchorState anchor;
-  final Animation<double> menuSize;
-  final Animation<double> menuOpacity;
+  final Animation<double>? menuSize;
+  final Animation<double>? menuOpacity;
   final MenuStyle? menuStyle;
   final Offset? menuPosition;
   final Offset alignmentOffset;
@@ -3636,7 +3648,8 @@ class _Submenu extends StatelessWidget {
           child: TapRegion(
             groupId: anchor._root,
             consumeOutsideTaps: anchor._root._isOpen && anchor.widget.consumeOutsideTap,
-            onTapOutside: (PointerDownEvent event) {
+            onTapOutside: (PointerDownEvent event) async {
+              await anchor._animateController.reverse();
               anchor._close();
             },
             child: MouseRegion(
@@ -4000,7 +4013,7 @@ class _MenuDefaultsM3 extends MenuStyle {
   VisualDensity get visualDensity => Theme.of(context).visualDensity;
 
   @override
-  AnimationStyle get animationStyle {
+  AnimationStyle get sizeAnimationStyle {
     return switch (Theme.of(context).platform) {
       TargetPlatform.iOS || TargetPlatform.android || TargetPlatform.fuchsia
         => AnimationStyle(
