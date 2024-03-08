@@ -213,7 +213,7 @@ class _ViewState extends State<View> {
           switch (event.direction) {
             case ViewFocusDirection.forward:
               nextFocus = _policy.findFirstFocus(_scopeNode, ignoreCurrentFocus: true);
-            case ViewFocusDirection.backwards:
+            case ViewFocusDirection.backward:
               nextFocus = _policy.findLastFocus(_scopeNode, ignoreCurrentFocus: true);
             case ViewFocusDirection.undefined:
           }
