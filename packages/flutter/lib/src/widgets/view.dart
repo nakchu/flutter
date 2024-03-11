@@ -209,7 +209,6 @@ class _ViewState extends State<View> {
   }
 
   void viewFocusChanged(ViewFocusEvent event) {
-    debugPrint('Received event $event');
     SchedulerBinding.instance.addPostFrameCallback((_) {
       setState(() {
         final FlutterView view = widget.view;
@@ -217,7 +216,6 @@ class _ViewState extends State<View> {
           return;
         }
         FocusNode? nextFocus;
-        debugPrint('Event $event View: $view');
         switch (event.state) {
           case ViewFocusState.focused:
             switch (event.direction) {
