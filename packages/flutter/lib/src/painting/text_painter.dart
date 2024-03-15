@@ -1616,6 +1616,7 @@ class TextPainter {
     );
   }
 
+  /// {@template flutter.painting.textPainter.computeLineMetrics}
   /// Returns the full list of [LineMetrics] that describe in detail the various
   /// metrics of each laid out line.
   ///
@@ -1625,6 +1626,7 @@ class TextPainter {
   /// [LineMetrics] contains measurements such as ascent, descent, baseline, and
   /// width for the line as a whole, and may be useful for aligning additional
   /// widgets to a particular line.
+  /// {@endtemplate}
   ///
   /// Valid only after [layout] has been called.
   List<ui.LineMetrics> computeLineMetrics() {
