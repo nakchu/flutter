@@ -170,6 +170,11 @@ void main() {
     WidgetsBinding.instance.handlePopRoute();
     WidgetsBinding.instance.handlePushRoute('/');
     WidgetsBinding.instance.handleRequestAppExit();
+    WidgetsBinding.instance.handleViewFocusChanged(
+      const ViewFocusEvent(viewId: 0,
+      state: ViewFocusState.focused,
+      direction: ViewFocusDirection.forward),
+    );
     await tester.idle();
     expect(observer.removeSelf(), greaterThan(1));
     expect(observer.removeSelf(), 0);

@@ -47,7 +47,7 @@ mixin ServicesBinding on BindingBase, SchedulerBinding {
     SystemChannels.accessibility.setMessageHandler((dynamic message) => _handleAccessibilityMessage(message as Object));
     SystemChannels.lifecycle.setMessageHandler(_handleLifecycleMessage);
     SystemChannels.platform.setMethodCallHandler(_handlePlatformMessage);
-    PlatformDispatcher.instance.onViewFocusChange = handleViewFocusChanged;
+    platformDispatcher.onViewFocusChange = handleViewFocusChanged;
     TextInput.ensureInitialized();
     readInitialLifecycleStateFromNativeWindow();
     initializationComplete();
