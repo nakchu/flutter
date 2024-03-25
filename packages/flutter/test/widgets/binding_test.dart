@@ -27,6 +27,15 @@ class AppLifecycleStateObserver with WidgetsBindingObserver {
   }
 }
 
+class ViewFocusObserver with WidgetsBindingObserver {
+  List<ViewFocusEvent> accumulatedEvents = <ViewFocusEvent>[];
+
+  @override
+  void didChangeViewFocus(ViewFocusEvent state) {
+    accumulatedEvents.add(state);
+  }
+}
+
 class PushRouteObserver with WidgetsBindingObserver {
   late String pushedRoute;
 
@@ -237,6 +246,22 @@ void main() {
       AppLifecycleState.paused,
       AppLifecycleState.detached,
     ]);
+    WidgetsBinding.instance.removeObserver(observer);
+  });
+
+  testWidgets('handleViewFocusChanged callback', (WidgetTester tester) async {
+    final ViewFocusObserver observer = ViewFocusObserver();
+    WidgetsBinding.instance.addObserver(observer);
+
+    const ViewFocusEvent expectedEvent = ViewFocusEvent(
+      viewId: 0,
+      state: ViewFocusState.focused,
+      direction: ViewFocusDirection.forward,
+    );
+
+    PlatformDispatcher.instance.onViewFocusChange!.call(expectedEvent);
+    expect(observer.accumulatedEvents, <ViewFocusEvent>[expectedEvent]);
+
     WidgetsBinding.instance.removeObserver(observer);
   });
 
