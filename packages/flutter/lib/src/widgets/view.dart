@@ -263,7 +263,7 @@ class _ViewState extends State<View> with WidgetsBindingObserver {
 /// Used by [_RawView.builder].
 typedef _RawViewContentBuilder = Widget Function(BuildContext context, PipelineOwner owner);
 
-/// The workhorse behind the [RawView] widget that actually bootstraps a render
+/// The workhorse behind the [View] widget that actually bootstraps a render
 /// tree.
 ///
 /// It instantiates the [RenderView] as the root of that render tree and adds it
