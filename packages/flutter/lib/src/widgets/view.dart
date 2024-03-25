@@ -182,12 +182,11 @@ class _ViewState extends State<View> with WidgetsBindingObserver {
   final FocusScopeNode _scopeNode = FocusScopeNode(
     debugLabel: kReleaseMode ? null : 'View Scope',
   );
-  late final FocusTraversalPolicy _policy;
+  final FocusTraversalPolicy _policy = ReadingOrderTraversalPolicy();
 
   @override
   void initState() {
     super.initState();
-    _policy = ReadingOrderTraversalPolicy();
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -202,6 +201,7 @@ class _ViewState extends State<View> with WidgetsBindingObserver {
   void didChangeViewFocus(ViewFocusEvent event) {
     final FlutterView view = widget.view;
     if (event.viewId != view.viewId) {
+      // The event is not pertinent to this view.
       return;
     }
     FocusNode? nextFocus;
@@ -217,8 +217,8 @@ class _ViewState extends State<View> with WidgetsBindingObserver {
         (nextFocus ?? _scopeNode).requestFocus();
       case ViewFocusState.unfocused:
         // Focusing on the root scope node will "park" the focus, so that no
-        // descendant node has focus, and there's no widget that can receive
-        // keyboard events.
+        // descendant node will be given focus, and there's no widget that can
+        // receive keyboard events.
         FocusManager.instance.rootScope.requestScopeFocus();
     }
   }

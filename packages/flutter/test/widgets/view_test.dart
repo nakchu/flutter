@@ -4,6 +4,7 @@
 
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -514,6 +515,52 @@ void main() {
     final RenderBox child = renderView.child!;
     expect(child.debugCanParentUseSize, isTrue);
     expect(child.size, const Size(100, 200));
+  });
+
+  testWidgets('ViewFocusEvents cause unfocusing and refocusing', (WidgetTester tester) async {
+    late FlutterView view;
+    late FocusNode focusNode;
+    await tester.pumpWidget(
+      Focus(
+        child: Builder(
+          builder: (BuildContext context) {
+            view = View.of(context);
+            focusNode = Focus.of(context);
+            return Container();
+          },
+        ),
+      ),
+    );
+
+    final ViewFocusEvent unfocusEvent = ViewFocusEvent(
+      viewId: view.viewId,
+      state: ViewFocusState.unfocused,
+      direction: ViewFocusDirection.forward,
+    );
+
+    final ViewFocusEvent focusEvent = ViewFocusEvent(
+      viewId: view.viewId,
+      state: ViewFocusState.focused,
+      direction: ViewFocusDirection.backward,
+    );
+
+    focusNode.requestFocus();
+    await tester.pump();
+
+    expect(focusNode.hasPrimaryFocus, isTrue);
+    expect(FocusManager.instance.rootScope.hasPrimaryFocus, isFalse);
+
+    PlatformDispatcher.instance.onViewFocusChange?.call(unfocusEvent);
+    await tester.pump();
+
+    expect(focusNode.hasPrimaryFocus, isFalse);
+    expect(FocusManager.instance.rootScope.hasPrimaryFocus, isTrue);
+
+    PlatformDispatcher.instance.onViewFocusChange?.call(focusEvent);
+    await tester.pump();
+
+    expect(focusNode.hasPrimaryFocus, isTrue);
+    expect(FocusManager.instance.rootScope.hasPrimaryFocus, isFalse);
   });
 }
 
