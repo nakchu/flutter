@@ -166,17 +166,18 @@ class _ViewState extends State<View> with WidgetsBindingObserver {
       // The event is not pertinent to this view.
       return;
     }
-    FocusNode? nextFocus;
+    FocusNode nextFocus;
     switch (event.state) {
       case ViewFocusState.focused:
         switch (event.direction) {
           case ViewFocusDirection.forward:
-            nextFocus = _policy.findFirstFocus(_scopeNode, ignoreCurrentFocus: true);
+            nextFocus = _policy.findFirstFocus(_scopeNode, ignoreCurrentFocus: true) ?? _scopeNode;
           case ViewFocusDirection.backward:
             nextFocus = _policy.findLastFocus(_scopeNode, ignoreCurrentFocus: true);
           case ViewFocusDirection.undefined:
+            nextFocus = _scopeNode;
         }
-        (nextFocus ?? _scopeNode).requestFocus();
+        nextFocus.requestFocus();
       case ViewFocusState.unfocused:
         // Focusing on the root scope node will "park" the focus, so that no
         // descendant node will be given focus, and there's no widget that can
