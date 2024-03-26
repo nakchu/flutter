@@ -106,24 +106,67 @@ class View extends StatefulWidget {
   final PipelineOwner? _deprecatedPipelineOwner;
   final RenderView? _deprecatedRenderView;
 
-  /// {@macro flutter.widgets.RawView.maybeOf}
+  /// Returns the [FlutterView] that the provided `context` will render into.
+  ///
+  /// Returns null if the `context` is not associated with a [FlutterView].
+  ///
+  /// The method creates a dependency on the `context`, which will be informed
+  /// when the identity of the [FlutterView] changes (i.e. the `context` is
+  /// moved to render into a different [FlutterView] then before). The context
+  /// will not be informed when the _properties_ on the [FlutterView] itself
+  /// change their values. To access the property values of a [FlutterView] it
+  /// is best practice to use [MediaQuery.maybeOf] instead, which will ensure
+  /// that the `context` is informed when the view properties change.
   ///
   /// See also:
   ///
   ///  * [View.of], which throws instead of returning null if no [FlutterView]
   ///    is found.
   static FlutterView? maybeOf(BuildContext context) {
-    return RawView.maybeOf(context);
+    return LookupBoundary.dependOnInheritedWidgetOfExactType<_ViewScope>(context)?.view;
   }
 
-  /// {@macro flutter.widgets.RawView.of}
+  /// Returns the [FlutterView] that the provided `context` will render into.
+  ///
+  /// Throws if the `context` is not associated with a [FlutterView].
+  ///
+  /// The method creates a dependency on the `context`, which will be informed
+  /// when the identity of the [FlutterView] changes (i.e. the `context` is
+  /// moved to render into a different [FlutterView] then before). The context
+  /// will not be informed when the _properties_ on the [FlutterView] itself
+  /// change their values. To access the property values of a [FlutterView]
+  /// prefer using the access methods on [MediaQuery], such as
+  /// [MediaQuery.sizeOf], which will ensure that the `context` is informed when
+  /// the view properties change.
   ///
   /// See also:
   ///
   ///  * [View.maybeOf], which throws instead of returning null if no
   ///    [FlutterView] is found.
   static FlutterView of(BuildContext context) {
-    return RawView.of(context);
+    final FlutterView? result = maybeOf(context);
+    assert(() {
+      if (result == null) {
+        final bool hiddenByBoundary = LookupBoundary.debugIsHidingAncestorWidgetOfExactType<_ViewScope>(context);
+        final List<DiagnosticsNode> information = <DiagnosticsNode>[
+          if (hiddenByBoundary) ...<DiagnosticsNode>[
+            ErrorSummary('View.of() was called with a context that does not have access to a View widget.'),
+            ErrorDescription('The context provided to View.of() does have a View widget ancestor, but it is hidden by a LookupBoundary.'),
+          ] else ...<DiagnosticsNode>[
+            ErrorSummary('View.of() was called with a context that does not contain a View widget.'),
+            ErrorDescription('No View widget ancestor could be found starting from the context that was passed to View.of().'),
+          ],
+          ErrorDescription(
+            'The context used was:\n'
+            '  $context',
+          ),
+          ErrorHint('This usually means that the provided context is not associated with a View.'),
+        ];
+        throw FlutterError.fromParts(information);
+      }
+      return true;
+    }());
+    return result!;
   }
 
   /// Returns the [PipelineOwner] parent to which a child [View] should attach
@@ -272,73 +315,6 @@ class RawView extends StatelessWidget {
 
   final PipelineOwner? _deprecatedPipelineOwner;
   final RenderView? _deprecatedRenderView;
-
-  /// {@template flutter.widgets.RawView.of}
-  /// Returns the [FlutterView] that the provided `context` will render into.
-  ///
-  /// Returns null if the `context` is not associated with a [FlutterView].
-  ///
-  /// The method creates a dependency on the `context`, which will be informed
-  /// when the identity of the [FlutterView] changes (i.e. the `context` is
-  /// moved to render into a different [FlutterView] then before). The context
-  /// will not be informed when the _properties_ on the [FlutterView] itself
-  /// change their values. To access the property values of a [FlutterView] it
-  /// is best practice to use [MediaQuery.maybeOf] instead, which will ensure
-  /// that the `context` is informed when the view properties change.
-  /// {@endtemplate}
-  ///
-  /// See also:
-  ///
-  ///  * [RawView.of], which throws instead of returning null if no [FlutterView]
-  ///    is found.
-  static FlutterView? maybeOf(BuildContext context) {
-    return LookupBoundary.dependOnInheritedWidgetOfExactType<_ViewScope>(context)?.view;
-  }
-
-  /// {@template flutter.widgets.RawView.maybeOf}
-  /// Returns the [FlutterView] that the provided `context` will render into.
-  ///
-  /// Throws if the `context` is not associated with a [FlutterView].
-  ///
-  /// The method creates a dependency on the `context`, which will be informed
-  /// when the identity of the [FlutterView] changes (i.e. the `context` is
-  /// moved to render into a different [FlutterView] then before). The context
-  /// will not be informed when the _properties_ on the [FlutterView] itself
-  /// change their values. To access the property values of a [FlutterView]
-  /// prefer using the access methods on [MediaQuery], such as
-  /// [MediaQuery.sizeOf], which will ensure that the `context` is informed when
-  /// the view properties change.
-  /// {@endtemplate}
-  ///
-  /// See also:
-  ///
-  ///  * [RawView.maybeOf], which throws instead of returning null if no
-  ///    [FlutterView] is found.
-  static FlutterView of(BuildContext context) {
-    final FlutterView? result = maybeOf(context);
-    assert(() {
-      if (result == null) {
-        final bool hiddenByBoundary = LookupBoundary.debugIsHidingAncestorWidgetOfExactType<_ViewScope>(context);
-        final List<DiagnosticsNode> information = <DiagnosticsNode>[
-          if (hiddenByBoundary) ...<DiagnosticsNode>[
-            ErrorSummary('View.of() was called with a context that does not have access to a View widget.'),
-            ErrorDescription('The context provided to View.of() does have a View widget ancestor, but it is hidden by a LookupBoundary.'),
-          ] else ...<DiagnosticsNode>[
-            ErrorSummary('View.of() was called with a context that does not contain a View widget.'),
-            ErrorDescription('No View widget ancestor could be found starting from the context that was passed to View.of().'),
-          ],
-          ErrorDescription(
-            'The context used was:\n'
-            '  $context',
-          ),
-          ErrorHint('This usually means that the provided context is not associated with a View.'),
-        ];
-        throw FlutterError.fromParts(information);
-      }
-      return true;
-    }());
-    return result!;
-  }
 
   @override
   Widget build(BuildContext context) {
