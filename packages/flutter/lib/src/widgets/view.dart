@@ -240,6 +240,7 @@ class _ViewState extends State<View> with WidgetsBindingObserver {
         child: FocusTraversalGroup(
           policy: _policy,
           child: FocusScope.withExternalFocusNode(
+            includeSemantics: false,
             focusScopeNode: _scopeNode,
             child: widget.child,
           ),
