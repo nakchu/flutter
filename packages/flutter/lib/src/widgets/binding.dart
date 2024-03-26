@@ -279,7 +279,7 @@ abstract mixin class WidgetsBindingObserver {
   ///
   /// The view ID of the [FlutterView] in which a particular [BuildContext]
   /// resides can be retrieved with `View.of(context).viewId`, so that it may be
-  /// compoared with the view ID in the `event` to see if the event pertains to
+  /// compared with the view ID in the `event` to see if the event pertains to
   /// the given context.
   void didChangeViewFocus(ViewFocusEvent event) { }
 
