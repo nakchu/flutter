@@ -7,7 +7,6 @@ import 'dart:ui' show FlutterView, SemanticsUpdate, ViewFocusDirection, ViewFocu
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
-import 'package:flutter/services.dart';
 
 import 'binding.dart';
 import 'focus_manager.dart';
