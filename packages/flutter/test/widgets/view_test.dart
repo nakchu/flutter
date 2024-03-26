@@ -6,6 +6,7 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:leak_tracker_flutter_testing/leak_tracker_flutter_testing.dart';
 
@@ -549,13 +550,13 @@ void main() {
     expect(focusNode.hasPrimaryFocus, isTrue);
     expect(FocusManager.instance.rootScope.hasPrimaryFocus, isFalse);
 
-    PlatformDispatcher.instance.onViewFocusChange?.call(unfocusEvent);
+    ServicesBinding.instance.platformDispatcher.onViewFocusChange?.call(unfocusEvent);
     await tester.pump();
 
     expect(focusNode.hasPrimaryFocus, isFalse);
     expect(FocusManager.instance.rootScope.hasPrimaryFocus, isTrue);
 
-    PlatformDispatcher.instance.onViewFocusChange?.call(focusEvent);
+    ServicesBinding.instance.platformDispatcher.onViewFocusChange?.call(focusEvent);
     await tester.pump();
 
     expect(focusNode.hasPrimaryFocus, isTrue);

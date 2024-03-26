@@ -7,6 +7,7 @@ import 'dart:ui' show FlutterView, SemanticsUpdate, ViewFocusDirection, ViewFocu
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 
 import 'binding.dart';
 import 'focus_manager.dart';
@@ -23,7 +24,7 @@ import 'media_query.dart';
 /// rendered into via [View.of] and [View.maybeOf].
 ///
 /// The provided [child] is wrapped in a [MediaQuery] constructed from the given
-/// [view].
+/// [view], a [FocusScope], and a [RawView] widget.
 ///
 /// For most use cases, using [MediaQuery.of], or its associated "...Of" methods
 /// are a more appropriate way of obtaining the information that a [FlutterView]
@@ -35,32 +36,37 @@ import 'media_query.dart';
 /// information to be aware of the context of the widget; e.g. the [Scaffold]
 /// widget adjusts the values for its various children.
 ///
-/// Each [FlutterView] can be associated with at most one [View] widget in the
-/// widget tree. Two or more [View] widgets configured with the same
-/// [FlutterView] must never exist within the same widget tree at the same time.
-/// This limitation is enforced by a [GlobalObjectKey] that derives its identity
-/// from the [view] provided to this widget.
+/// Each [FlutterView] can be associated with at most one [View] or [RawView]
+/// widget in the widget tree. Two or more [View] or [RawView] widgets
+/// configured with the same [FlutterView] must never exist within the same
+/// widget tree at the same time. This limitation is enforced by a
+/// [GlobalObjectKey] that derives its identity from the [view] provided to this
+/// widget.
 ///
-/// Since the [View] widget bootstraps its own independent render tree, neither
-/// it nor any of its descendants will insert a [RenderObject] into an existing
-/// render tree. Therefore, the [View] widget can only be used in those parts of
-/// the widget tree where it is not required to participate in the construction
-/// of the surrounding render tree. In other words, the widget may only be used
-/// in a non-rendering zone of the widget tree (see [WidgetsBinding] for a
-/// definition of rendering and non-rendering zones).
+/// Since the [View] widget bootstraps its own independent render tree using its
+/// embedded [RawView], neither it nor any of its descendants will insert a
+/// [RenderObject] into an existing render tree. Therefore, the [View] widget
+/// can only be used in those parts of the widget tree where it is not required
+/// to participate in the construction of the surrounding render tree. In other
+/// words, the widget may only be used in a non-rendering zone of the widget
+/// tree (see [WidgetsBinding] for a definition of rendering and non-rendering
+/// zones).
 ///
 /// In practical terms, the widget is typically used at the root of the widget
-/// tree outside of any other [View] widget, as a child of a [ViewCollection]
-/// widget, or in the [ViewAnchor.view] slot of a [ViewAnchor] widget. It is not
-/// required to be a direct child, though, since other non-[RenderObjectWidget]s
-/// (e.g. [InheritedWidget]s, [Builder]s, or [StatefulWidget]s/[StatelessWidget]
-/// that only produce non-[RenderObjectWidget]s) are allowed to be present
-/// between those widgets and the [View] widget.
+/// tree outside of any other [View] or [RawView] widget, as a child of a
+/// [ViewCollection] widget, or in the [ViewAnchor.view] slot of a [ViewAnchor]
+/// widget. It is not required to be a direct child, though, since other
+/// non-[RenderObjectWidget]s (e.g. [InheritedWidget]s, [Builder]s, or
+/// [StatefulWidget]s/[StatelessWidget]s that only produce
+/// non-[RenderObjectWidget]s) are allowed to be present between those widgets
+/// and the [View] widget.
 ///
 /// See also:
 ///
-///  * [Element.debugExpectsRenderObjectForSlot], which defines whether a [View]
-///    widget is allowed in a given child slot.
+/// * [RawView], the workhorse that [View] uses to create the render tree, but
+///   without the [MediaQuery] and [FocusScope] that [View] adds.
+/// * [Element.debugExpectsRenderObjectForSlot], which defines whether a [View]
+///   widget is allowed in a given child slot.
 class View extends StatefulWidget {
   /// Create a [View] widget to bootstrap a render tree that is rendered into
   /// the provided [FlutterView].
@@ -100,67 +106,24 @@ class View extends StatefulWidget {
   final PipelineOwner? _deprecatedPipelineOwner;
   final RenderView? _deprecatedRenderView;
 
-  /// Returns the [FlutterView] that the provided `context` will render into.
-  ///
-  /// Returns null if the `context` is not associated with a [FlutterView].
-  ///
-  /// The method creates a dependency on the `context`, which will be informed
-  /// when the identity of the [FlutterView] changes (i.e. the `context` is
-  /// moved to render into a different [FlutterView] then before). The context
-  /// will not be informed when the _properties_ on the [FlutterView] itself
-  /// change their values. To access the property values of a [FlutterView] it
-  /// is best practice to use [MediaQuery.maybeOf] instead, which will ensure
-  /// that the `context` is informed when the view properties change.
+  /// {@macro flutter.widgets.RawView.maybeOf}
   ///
   /// See also:
   ///
   ///  * [View.of], which throws instead of returning null if no [FlutterView]
   ///    is found.
   static FlutterView? maybeOf(BuildContext context) {
-    return LookupBoundary.dependOnInheritedWidgetOfExactType<_ViewScope>(context)?.view;
+    return RawView.maybeOf(context);
   }
 
-  /// Returns the [FlutterView] that the provided `context` will render into.
-  ///
-  /// Throws if the `context` is not associated with a [FlutterView].
-  ///
-  /// The method creates a dependency on the `context`, which will be informed
-  /// when the identity of the [FlutterView] changes (i.e. the `context` is
-  /// moved to render into a different [FlutterView] then before). The context
-  /// will not be informed when the _properties_ on the [FlutterView] itself
-  /// change their values. To access the property values of a [FlutterView]
-  /// prefer using the access methods on [MediaQuery], such as
-  /// [MediaQuery.sizeOf], which will ensure that the `context` is informed when
-  /// the view properties change.
+  /// {@macro flutter.widgets.RawView.of}
   ///
   /// See also:
   ///
   ///  * [View.maybeOf], which throws instead of returning null if no
   ///    [FlutterView] is found.
   static FlutterView of(BuildContext context) {
-    final FlutterView? result = maybeOf(context);
-    assert(() {
-      if (result == null) {
-        final bool hiddenByBoundary = LookupBoundary.debugIsHidingAncestorWidgetOfExactType<_ViewScope>(context);
-        final List<DiagnosticsNode> information = <DiagnosticsNode>[
-          if (hiddenByBoundary) ...<DiagnosticsNode>[
-            ErrorSummary('View.of() was called with a context that does not have access to a View widget.'),
-            ErrorDescription('The context provided to View.of() does have a View widget ancestor, but it is hidden by a LookupBoundary.'),
-          ] else ...<DiagnosticsNode>[
-            ErrorSummary('View.of() was called with a context that does not contain a View widget.'),
-            ErrorDescription('No View widget ancestor could be found starting from the context that was passed to View.of().'),
-          ],
-          ErrorDescription(
-            'The context used was:\n'
-            '  $context',
-          ),
-          ErrorHint('This usually means that the provided context is not associated with a View.'),
-        ];
-        throw FlutterError.fromParts(information);
-      }
-      return true;
-    }());
-    return result!;
+    return RawView.of(context);
   }
 
   /// Returns the [PipelineOwner] parent to which a child [View] should attach
@@ -199,8 +162,7 @@ class _ViewState extends State<View> with WidgetsBindingObserver {
 
   @override
   void didChangeViewFocus(ViewFocusEvent event) {
-    final FlutterView view = widget.view;
-    if (event.viewId != view.viewId) {
+    if (event.viewId != widget.view.viewId) {
       // The event is not pertinent to this view.
       return;
     }
@@ -225,25 +187,170 @@ class _ViewState extends State<View> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return _RawView(
+    return RawView(
       view: widget.view,
-      deprecatedPipelineOwner: widget._deprecatedPipelineOwner,
-      deprecatedRenderView: widget._deprecatedRenderView,
+      deprecatedDoNotUseWillBeRemovedWithoutNoticePipelineOwner: widget._deprecatedPipelineOwner,
+      deprecatedDoNotUseWillBeRemovedWithoutNoticeRenderView: widget._deprecatedRenderView,
+      child: MediaQuery.fromView(
+        view: widget.view,
+        child: FocusTraversalGroup(
+          policy: _policy,
+          child: FocusScope.withExternalFocusNode(
+            focusScopeNode: _scopeNode,
+            child: widget.child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The lower level workhorse widget for [View] that bootstraps a render tree
+/// for a view.
+///
+/// The [RawView] widget is typically used when it is not desirable to have a
+/// [FocusScope] or [MediaQuery] around the resulting widget tree, in the way a
+/// [View] creates.
+///
+/// This widget is typically used at the root of the widget tree outside of any
+/// other [View] or [RawView], as a child to a [ViewCollection], or in the
+/// [ViewAnchor.view] slot of a [ViewAnchor] widget. It is not required to be a
+/// direct child of those widgets; other non-[RenderObjectWidget]s may appear in
+/// between the two (such as an [InheritedWidget]).
+///
+/// Each [FlutterView] can be associated with at most one [View] or [RawView]
+/// widget in the widget tree. Two or more [View] or [RawView] widgets
+/// configured with the same [FlutterView] must never exist within the same
+/// widget tree at the same time. This limitation is enforced by a
+/// [GlobalObjectKey] that derives its identity from the [view] provided to this
+/// widget.
+///
+/// Since the [RawView] widget bootstraps its own independent render tree,
+/// neither it nor any of its descendants will insert a [RenderObject] into an
+/// existing render tree. Therefore, the [RawView] widget can only be used in
+/// those parts of the widget tree where it is not required to participate in
+/// the construction of the surrounding render tree. In other words, the widget
+/// may only be used in a non-rendering zone of the widget tree (see
+/// [WidgetsBinding] for a definition of rendering and non-rendering zones).
+///
+/// See also:
+///
+/// * [View] for a higher level interface that also sets up a [MediaQuery] and
+///   [FocusScope] for the view's widget tree.
+class RawView extends StatelessWidget {
+  /// Creates a [RawView] widget.
+  RawView({
+    super.key,
+    required this.view,
+    @Deprecated(
+      'Do not use. '
+      'This parameter only exists to implement the deprecated RendererBinding.pipelineOwner property until it is removed. '
+      'This feature was deprecated after v3.10.0-12.0.pre.'
+    )
+    PipelineOwner? deprecatedDoNotUseWillBeRemovedWithoutNoticePipelineOwner,
+    @Deprecated(
+      'Do not use. '
+      'This parameter only exists to implement the deprecated RendererBinding.renderView property until it is removed. '
+      'This feature was deprecated after v3.10.0-12.0.pre.'
+    )
+    RenderView? deprecatedDoNotUseWillBeRemovedWithoutNoticeRenderView,
+    required this.child,
+  }) : _deprecatedPipelineOwner = deprecatedDoNotUseWillBeRemovedWithoutNoticePipelineOwner,
+       _deprecatedRenderView = deprecatedDoNotUseWillBeRemovedWithoutNoticeRenderView,
+       assert((deprecatedDoNotUseWillBeRemovedWithoutNoticePipelineOwner == null) == (deprecatedDoNotUseWillBeRemovedWithoutNoticeRenderView == null)),
+       assert(deprecatedDoNotUseWillBeRemovedWithoutNoticeRenderView == null || deprecatedDoNotUseWillBeRemovedWithoutNoticeRenderView.flutterView == view);
+
+  /// The [FlutterView] into which [child] is drawn.
+  final FlutterView view;
+
+  /// The widget below this widget in the tree, which will be drawn into the
+  /// [view].
+  ///
+  /// {@macro flutter.widgets.ProxyWidget.child}
+  final Widget child;
+
+  final PipelineOwner? _deprecatedPipelineOwner;
+  final RenderView? _deprecatedRenderView;
+
+  /// {@template flutter.widgets.RawView.of}
+  /// Returns the [FlutterView] that the provided `context` will render into.
+  ///
+  /// Returns null if the `context` is not associated with a [FlutterView].
+  ///
+  /// The method creates a dependency on the `context`, which will be informed
+  /// when the identity of the [FlutterView] changes (i.e. the `context` is
+  /// moved to render into a different [FlutterView] then before). The context
+  /// will not be informed when the _properties_ on the [FlutterView] itself
+  /// change their values. To access the property values of a [FlutterView] it
+  /// is best practice to use [MediaQuery.maybeOf] instead, which will ensure
+  /// that the `context` is informed when the view properties change.
+  /// {@endtemplate}
+  ///
+  /// See also:
+  ///
+  ///  * [RawView.of], which throws instead of returning null if no [FlutterView]
+  ///    is found.
+  static FlutterView? maybeOf(BuildContext context) {
+    return LookupBoundary.dependOnInheritedWidgetOfExactType<_ViewScope>(context)?.view;
+  }
+
+  /// {@template flutter.widgets.RawView.maybeOf}
+  /// Returns the [FlutterView] that the provided `context` will render into.
+  ///
+  /// Throws if the `context` is not associated with a [FlutterView].
+  ///
+  /// The method creates a dependency on the `context`, which will be informed
+  /// when the identity of the [FlutterView] changes (i.e. the `context` is
+  /// moved to render into a different [FlutterView] then before). The context
+  /// will not be informed when the _properties_ on the [FlutterView] itself
+  /// change their values. To access the property values of a [FlutterView]
+  /// prefer using the access methods on [MediaQuery], such as
+  /// [MediaQuery.sizeOf], which will ensure that the `context` is informed when
+  /// the view properties change.
+  /// {@endtemplate}
+  ///
+  /// See also:
+  ///
+  ///  * [RawView.maybeOf], which throws instead of returning null if no
+  ///    [FlutterView] is found.
+  static FlutterView of(BuildContext context) {
+    final FlutterView? result = maybeOf(context);
+    assert(() {
+      if (result == null) {
+        final bool hiddenByBoundary = LookupBoundary.debugIsHidingAncestorWidgetOfExactType<_ViewScope>(context);
+        final List<DiagnosticsNode> information = <DiagnosticsNode>[
+          if (hiddenByBoundary) ...<DiagnosticsNode>[
+            ErrorSummary('View.of() was called with a context that does not have access to a View widget.'),
+            ErrorDescription('The context provided to View.of() does have a View widget ancestor, but it is hidden by a LookupBoundary.'),
+          ] else ...<DiagnosticsNode>[
+            ErrorSummary('View.of() was called with a context that does not contain a View widget.'),
+            ErrorDescription('No View widget ancestor could be found starting from the context that was passed to View.of().'),
+          ],
+          ErrorDescription(
+            'The context used was:\n'
+            '  $context',
+          ),
+          ErrorHint('This usually means that the provided context is not associated with a View.'),
+        ];
+        throw FlutterError.fromParts(information);
+      }
+      return true;
+    }());
+    return result!;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _RawViewInternal(
+      view: view,
+      deprecatedPipelineOwner: _deprecatedPipelineOwner,
+      deprecatedRenderView: _deprecatedRenderView,
       builder: (BuildContext context, PipelineOwner owner) {
         return _ViewScope(
-          view: widget.view,
+          view: view,
           child: _PipelineOwnerScope(
             pipelineOwner: owner,
-            child: MediaQuery.fromView(
-              view: widget.view,
-              child: FocusTraversalGroup(
-                policy: _policy,
-                child: FocusScope.withExternalFocusNode(
-                  focusScopeNode: _scopeNode,
-                  child: widget.child,
-                ),
-              ),
-            ),
+            child: child,
           ),
         );
       },
@@ -251,19 +358,19 @@ class _ViewState extends State<View> with WidgetsBindingObserver {
   }
 }
 
-/// A builder for the content [Widget] of a [_RawView].
+/// A builder for the content [Widget] of a [_RawViewInternal].
 ///
 /// The widget returned by the builder defines the content that is drawn into
-/// the [FlutterView] configured on the [_RawView].
+/// the [FlutterView] configured on the [_RawViewInternal].
 ///
-/// The builder is given the [PipelineOwner] that the [_RawView] uses to manage
-/// its render tree. Typical builder implementations make that pipeline owner
-/// available as an attachment point for potential child views.
+/// The builder is given the [PipelineOwner] that the [_RawViewInternal] uses to
+/// manage its render tree. Typical builder implementations make that pipeline
+/// owner available as an attachment point for potential child views.
 ///
-/// Used by [_RawView.builder].
+/// Used by [_RawViewInternal.builder].
 typedef _RawViewContentBuilder = Widget Function(BuildContext context, PipelineOwner owner);
 
-/// The workhorse behind the [View] widget that actually bootstraps a render
+/// The workhorse behind the [RawView] widget that actually bootstraps a render
 /// tree.
 ///
 /// It instantiates the [RenderView] as the root of that render tree and adds it
@@ -272,13 +379,13 @@ typedef _RawViewContentBuilder = Widget Function(BuildContext context, PipelineO
 /// the surrounding parent [PipelineOwner] obtained with [View.pipelineOwnerOf].
 /// This ensures that the render tree bootstrapped by this widget participates
 /// properly in frame production and hit testing.
-class _RawView extends RenderObjectWidget {
-  /// Create a [RawView] widget to bootstrap a render tree that is rendered into
-  /// the provided [FlutterView].
+class _RawViewInternal extends RenderObjectWidget {
+  /// Create a [_RawViewInternal] widget to bootstrap a render tree that is
+  /// rendered into the provided [FlutterView].
   ///
   /// The content rendered into that [view] is determined by the [Widget]
   /// returned by [builder].
-  _RawView({
+  _RawViewInternal({
     required this.view,
     required PipelineOwner? deprecatedPipelineOwner,
     required RenderView? deprecatedRenderView,
@@ -325,7 +432,7 @@ class _RawViewElement extends RenderTreeRootElement {
     onSemanticsOwnerDisposed: _handleSemanticsOwnerDisposed,
   );
 
-  PipelineOwner get _effectivePipelineOwner => (widget as _RawView)._deprecatedPipelineOwner ?? _pipelineOwner;
+  PipelineOwner get _effectivePipelineOwner => (widget as _RawViewInternal)._deprecatedPipelineOwner ?? _pipelineOwner;
 
   void _handleSemanticsOwnerCreated() {
     (_effectivePipelineOwner.rootNode as RenderView?)?.scheduleInitialSemantics();
@@ -336,7 +443,7 @@ class _RawViewElement extends RenderTreeRootElement {
   }
 
   void _handleSemanticsUpdate(SemanticsUpdate update) {
-    (widget as _RawView).view.updateSemantics(update);
+    (widget as _RawViewInternal).view.updateSemantics(update);
   }
 
   @override
@@ -346,7 +453,7 @@ class _RawViewElement extends RenderTreeRootElement {
 
   void _updateChild() {
     try {
-      final Widget child = (widget as _RawView).builder(this, _effectivePipelineOwner);
+      final Widget child = (widget as _RawViewInternal).builder(this, _effectivePipelineOwner);
       _child = updateChild(_child, child, null);
     } catch (e, stack) {
       final FlutterErrorDetails details = FlutterErrorDetails(
@@ -432,7 +539,7 @@ class _RawViewElement extends RenderTreeRootElement {
   }
 
   @override
-  void update(_RawView newWidget) {
+  void update(_RawViewInternal newWidget) {
     super.update(newWidget);
     _updateChild();
   }
@@ -472,7 +579,7 @@ class _RawViewElement extends RenderTreeRootElement {
 
   @override
   void unmount() {
-    if (_effectivePipelineOwner != (widget as _RawView)._deprecatedPipelineOwner) {
+    if (_effectivePipelineOwner != (widget as _RawViewInternal)._deprecatedPipelineOwner) {
       _effectivePipelineOwner.dispose();
     }
     super.unmount();

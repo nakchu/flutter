@@ -278,7 +278,7 @@ abstract mixin class WidgetsBindingObserver {
   /// state.
   ///
   /// The view id of the [FlutterView] in which a particular [BuildContext]
-  /// resides can be retrieved with `View.of(context).viewId`.
+  /// resides can be retrieved from the [ViewFocusEvent].
   void didChangeViewFocus(ViewFocusEvent event) { }
 
   /// Called when a request is received from the system to exit the application.
