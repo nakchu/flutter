@@ -40,27 +40,28 @@ class MockCupertinoTabController extends CupertinoTabController {
 }
 
 void main() {
-  // TODO(polina-c): dispose ImageStreamCompleterHandle, https://github.com/flutter/flutter/issues/145599 [leaks-to-clean]
-  LeakTesting.settings = LeakTesting.settings.withIgnoredAll();
+
+  final MemoryImage memoryImage = MemoryImage(Uint8List.fromList(kTransparentImage));
 
   setUp(() {
     selectedTabs = <int>[];
   });
 
+  tearDownAll(memoryImage.evict);
+
   BottomNavigationBarItem tabGenerator(int index) {
     return BottomNavigationBarItem(
-      icon: ImageIcon(MemoryImage(Uint8List.fromList(kTransparentImage))),
+      icon: ImageIcon(memoryImage),
       label: 'Tab ${index + 1}',
     );
   }
 
   testWidgets('Tab switching', (WidgetTester tester) async {
     final List<int> tabsPainted = <int>[];
-
     await tester.pumpWidget(
       CupertinoApp(
         home: CupertinoTabScaffold(
-          tabBar: _buildTabBar(),
+          tabBar: _buildTabBar(memoryImage),
           tabBuilder: (BuildContext context, int index) {
             return CustomPaint(
               painter: TestCallbackPainter(
@@ -110,11 +111,10 @@ void main() {
 
   testWidgets('Tabs are lazy built and moved offstage when inactive', (WidgetTester tester) async {
     final List<int> tabsBuilt = <int>[];
-
     await tester.pumpWidget(
       CupertinoApp(
         home: CupertinoTabScaffold(
-          tabBar: _buildTabBar(),
+          tabBar: _buildTabBar(memoryImage),
           tabBuilder: (BuildContext context, int index) {
             tabsBuilt.add(index);
             return Text('Page ${index + 1}');
@@ -156,7 +156,7 @@ void main() {
     await tester.pumpWidget(
       CupertinoApp(
         home: CupertinoTabScaffold(
-          tabBar: _buildTabBar(),
+          tabBar: _buildTabBar(memoryImage),
           tabBuilder: (BuildContext context, int index) {
             return CupertinoTextField(
               focusNode: focusNodes[index],
@@ -196,7 +196,7 @@ void main() {
     await tester.pumpWidget(
       CupertinoApp(
         home: CupertinoTabScaffold(
-          tabBar: _buildTabBar(),
+          tabBar: _buildTabBar(memoryImage),
           tabBuilder: (BuildContext context, int index) {
             return Column(
               children: <Widget>[
@@ -249,7 +249,7 @@ void main() {
   });
 
   testWidgets('Programmatic tab switching by changing the index of an existing controller',
-    experimentalLeakTesting: LeakTesting.settings.withCreationStackTrace(),
+    // experimentalLeakTesting: LeakTesting.settings.withCreationStackTrace(),
   (WidgetTester tester) async {
     final CupertinoTabController controller = CupertinoTabController(initialIndex: 1);
     addTearDown(controller.dispose);
@@ -258,7 +258,7 @@ void main() {
     await tester.pumpWidget(
       CupertinoApp(
         home: CupertinoTabScaffold(
-          tabBar: _buildTabBar(),
+          tabBar: _buildTabBar(memoryImage),
           controller: controller,
           tabBuilder: (BuildContext context, int index) {
             return CustomPaint(
@@ -295,7 +295,7 @@ void main() {
     await tester.pumpWidget(
       CupertinoApp(
         home: CupertinoTabScaffold(
-          tabBar: _buildTabBar(),
+          tabBar: _buildTabBar(memoryImage),
           tabBuilder: (BuildContext context, int index) {
             return CustomPaint(
               painter: TestCallbackPainter(
@@ -315,7 +315,7 @@ void main() {
     await tester.pumpWidget(
       CupertinoApp(
         home: CupertinoTabScaffold(
-          tabBar: _buildTabBar(),
+          tabBar: _buildTabBar(memoryImage),
           controller: controller, // Programmatically change the tab now.
           tabBuilder: (BuildContext context, int index) {
             return CustomPaint(
@@ -345,7 +345,7 @@ void main() {
     await tester.pumpWidget(
       CupertinoApp(
         home: CupertinoTabScaffold(
-          tabBar: _buildTabBar(),
+          tabBar: _buildTabBar(memoryImage),
           tabBuilder: (BuildContext context, int index) {
             return const Placeholder();
           },
@@ -371,7 +371,7 @@ void main() {
           primaryColor: CupertinoColors.destructiveRed,
         ),
         home: CupertinoTabScaffold(
-          tabBar: _buildTabBar(),
+          tabBar: _buildTabBar(memoryImage),
           tabBuilder: (BuildContext context, int index) {
             return const Placeholder();
           },
@@ -409,7 +409,7 @@ void main() {
             viewInsets: EdgeInsets.only(bottom: 200),
           ),
           child: CupertinoTabScaffold(
-            tabBar: _buildTabBar(),
+            tabBar: _buildTabBar(memoryImage),
             tabBuilder: (BuildContext context, int index) {
               innerContext = context;
               return const Placeholder();
@@ -436,7 +436,7 @@ void main() {
           ),
           child: CupertinoTabScaffold(
             resizeToAvoidBottomInset: false,
-            tabBar: _buildTabBar(),
+            tabBar: _buildTabBar(memoryImage),
             tabBuilder: (BuildContext context, int index) {
               innerContext = context;
               return const Placeholder();
@@ -463,7 +463,7 @@ void main() {
         textDirection: TextDirection.ltr,
         child: CupertinoTabScaffold(
           resizeToAvoidBottomInset: false,
-          tabBar: _buildTabBar(),
+          tabBar: _buildTabBar(memoryImage),
           tabBuilder: (BuildContext context, int index) {
             return const Placeholder();
           },
@@ -542,7 +542,7 @@ void main() {
             viewInsets: EdgeInsets.only(bottom: 200),
           ),
           child: CupertinoTabScaffold(
-            tabBar: _buildTabBar(),
+            tabBar: _buildTabBar(memoryImage),
             tabBuilder: (BuildContext context, int index) {
               return CupertinoPageScaffold(
                 child: Builder(
@@ -986,6 +986,7 @@ void main() {
     final String message = tester.takeException().toString();
     expect(message, contains('current index ${controller.index}'));
     expect(message, contains('with 3 tabs'));
+
   });
 
   testWidgets("Don't replace focus nodes for existing tabs when changing tab count", (WidgetTester tester) async {
@@ -1034,6 +1035,7 @@ void main() {
           ),
         ),
     );
+
     for (int i = 0; i < 5; i++) {
       controller.index = i;
       await tester.pump();
@@ -1068,7 +1070,7 @@ void main() {
         data: const MediaQueryData(),
         child: CupertinoApp(
           home: CupertinoTabScaffold(
-            tabBar: _buildTabBar(),
+            tabBar: _buildTabBar(memoryImage),
             tabBuilder: (BuildContext context, int index) {
               return const CupertinoTextField();
             },
@@ -1076,7 +1078,6 @@ void main() {
         ),
       ),
     );
-
     final EditableTextState editableState = tester.state<EditableTextState>(find.byType(EditableText));
 
     await tester.enterText(find.byType(CupertinoTextField), "don't lose me");
@@ -1088,7 +1089,7 @@ void main() {
         ),
         child: CupertinoApp(
           home: CupertinoTabScaffold(
-            tabBar: _buildTabBar(),
+            tabBar: _buildTabBar(memoryImage),
             tabBuilder: (BuildContext context, int index) {
               return const CupertinoTextField();
             },
@@ -1103,7 +1104,7 @@ void main() {
   });
 
   testWidgets('textScaleFactor is set to 1.0',
-  experimentalLeakTesting: LeakTesting.settings.withCreationStackTrace(),
+  // experimentalLeakTesting: LeakTesting.settings.withCreationStackTrace(),
   (WidgetTester tester) async {
     await tester.pumpWidget(
       CupertinoApp(
@@ -1115,7 +1116,7 @@ void main() {
               tabBar: CupertinoTabBar(
                 items: List<BottomNavigationBarItem>.generate(
                   10,
-                  (int i) => BottomNavigationBarItem(icon: ImageIcon(MemoryImage(Uint8List.fromList(kTransparentImage))), label: '$i'),
+                  (int i) => BottomNavigationBarItem(icon: ImageIcon(memoryImage), label: '$i'),
                 ),
               ),
               tabBuilder: (BuildContext context, int index) => const Text('content'),
@@ -1275,6 +1276,7 @@ void main() {
     tearDown(() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(SystemChannels.platform, null);
+
     });
 
     testWidgets('System back navigation inside of tabs',
@@ -1288,7 +1290,7 @@ void main() {
               viewInsets: EdgeInsets.only(bottom: 200),
             ),
             child: CupertinoTabScaffold(
-              tabBar: _buildTabBar(),
+              tabBar: _buildTabBar(memoryImage),
               tabBuilder: (BuildContext context, int index) {
                 return CupertinoTabView(
                   builder: (BuildContext context) {
@@ -1383,15 +1385,15 @@ void main() {
   });
 }
 
-CupertinoTabBar _buildTabBar({ int selectedTab = 0 }) {
+CupertinoTabBar _buildTabBar(MemoryImage memoryImage, { int selectedTab = 0 }) {
   return CupertinoTabBar(
     items: <BottomNavigationBarItem>[
       BottomNavigationBarItem(
-        icon: ImageIcon(MemoryImage(Uint8List.fromList(kTransparentImage))),
+        icon: ImageIcon(memoryImage),
         label: 'Tab 1',
       ),
       BottomNavigationBarItem(
-        icon: ImageIcon(MemoryImage(Uint8List.fromList(kTransparentImage))),
+        icon: ImageIcon(memoryImage),
         label: 'Tab 2',
       ),
     ],
