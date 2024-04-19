@@ -488,7 +488,12 @@ void main() {
   testWidgets('Can extend MultiStaticSelectableSelectionContainerDelegate', (WidgetTester tester) async {
     SelectedContent? content;
     final FocusNode focusNode = FocusNode();
+
+    // Inserts a new line between selected content of children selectables.
+    final ColumnSelectionContainerDelegate selectionDelegate = ColumnSelectionContainerDelegate();
+
     addTearDown(focusNode.dispose);
+    addTearDown(selectionDelegate.dispose);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -498,9 +503,9 @@ void main() {
           selectionControls: materialTextSelectionControls,
           child: Center(
             child: SelectionContainer(
-              delegate: ColumnSelectionContainerDelegate(), // Inserts a new line between selected content of children selectables.
+              delegate: selectionDelegate,
               child: const Column(
-                children: [
+                children: <Widget>[
                   Text('Hello World!'),
                   Text('How are you!'),
                 ],
