@@ -22,6 +22,8 @@ import 'dart/language_version.dart';
 import 'dart/package_map.dart';
 import 'features.dart';
 import 'globals.dart' as globals;
+import 'macos/darwin_dependency_management.dart';
+import 'macos/swift_package_manager.dart';
 import 'platform_plugins.dart';
 import 'plugins.dart';
 import 'project.dart';
@@ -160,7 +162,11 @@ const String _kFlutterPluginsSharedDarwinSource = 'shared_darwin_source';
 ///
 ///
 /// Finally, returns [true] if the plugins list has changed, otherwise returns [false].
-bool _writeFlutterPluginsList(FlutterProject project, List<Plugin> plugins) {
+bool _writeFlutterPluginsList(
+  FlutterProject project,
+  List<Plugin> plugins, {
+  bool forceCocoaPodsOnly = false,
+}) {
   final File pluginsFile = project.flutterPluginsDependenciesFile;
   if (plugins.isEmpty) {
     return ErrorHandlingFileSystem.deleteIfExists(pluginsFile);
@@ -190,6 +196,7 @@ bool _writeFlutterPluginsList(FlutterProject project, List<Plugin> plugins) {
   result['dependencyGraph'] = _createPluginLegacyDependencyGraph(plugins);
   result['date_created'] = globals.systemClock.now().toString();
   result['version'] = globals.flutterVersion.frameworkVersion;
+  result['swift_package_manager_enabled'] = !forceCocoaPodsOnly && project.usesSwiftPackageManager;
 
   // Only notify if the plugins list has changed. [date_created] will always be different,
   // [version] is not relevant for this check.
@@ -1022,6 +1029,7 @@ Future<void> refreshPluginsList(
   FlutterProject project, {
   bool iosPlatform = false,
   bool macOSPlatform = false,
+  bool forceCocoaPodsOnly = false,
 }) async {
   final List<Plugin> plugins = await findPlugins(project);
   // Sort the plugins by name to keep ordering stable in generated files.
@@ -1030,8 +1038,12 @@ Future<void> refreshPluginsList(
   // Write the legacy plugin files to avoid breaking existing apps.
   final bool legacyChanged = _writeFlutterPluginsListLegacy(project, plugins);
 
-  final bool changed = _writeFlutterPluginsList(project, plugins);
-  if (changed || legacyChanged) {
+  final bool changed = _writeFlutterPluginsList(
+    project,
+    plugins,
+    forceCocoaPodsOnly: forceCocoaPodsOnly,
+  );
+  if (changed || legacyChanged || forceCocoaPodsOnly) {
     createPluginSymlinks(project, force: true);
     if (iosPlatform) {
       globals.cocoaPods?.invalidatePodInstallOutput(project.ios);
@@ -1091,6 +1103,7 @@ Future<void> injectPlugins(
   bool macOSPlatform = false,
   bool windowsPlatform = false,
   Iterable<String>? allowedPlugins,
+  DarwinDependencyManagement? darwinDependencyManagement,
 }) async {
   final List<Plugin> plugins = await findPlugins(project);
   // Sort the plugins by name to keep ordering stable in generated files.
@@ -1110,20 +1123,27 @@ Future<void> injectPlugins(
   if (windowsPlatform) {
     await writeWindowsPluginFiles(project, plugins, globals.templateRenderer, allowedPlugins: allowedPlugins);
   }
-  if (!project.isModule) {
-    final List<XcodeBasedProject> darwinProjects = <XcodeBasedProject>[
-      if (iosPlatform) project.ios,
-      if (macOSPlatform) project.macos,
-    ];
-    for (final XcodeBasedProject subproject in darwinProjects) {
-      if (plugins.isNotEmpty) {
-        await globals.cocoaPods?.setupPodfile(subproject);
-      }
-      /// The user may have a custom maintained Podfile that they're running `pod install`
-      /// on themselves.
-      else if (subproject.podfile.existsSync() && subproject.podfileLock.existsSync()) {
-        globals.cocoaPods?.addPodsDependencyToFlutterXcconfig(subproject);
-      }
+  if (iosPlatform || macOSPlatform) {
+    final DarwinDependencyManagement darwinDependencyManagerSetup = darwinDependencyManagement ?? DarwinDependencyManagement(
+      project: project,
+      plugins: plugins,
+      cocoapods: globals.cocoaPods!,
+      swiftPackageManager: SwiftPackageManager(
+        fileSystem: globals.fs,
+        templateRenderer: globals.templateRenderer,
+      ),
+      fileSystem: globals.fs,
+      logger: globals.logger,
+    );
+    if (iosPlatform) {
+      await darwinDependencyManagerSetup.setUp(
+        platform: SupportedPlatform.ios,
+      );
+    }
+    if (macOSPlatform) {
+      await darwinDependencyManagerSetup.setUp(
+        platform: SupportedPlatform.macos,
+      );
     }
   }
 }
@@ -1209,36 +1229,39 @@ Iterable<Plugin> _resolvePluginImplementationByPlatform(
   String platformKey, {
   bool selectDartPluginsOnly = false,
 }) {
-  // Key: the plugin name
+  // Key: the plugin name, value: the list of plugin candidates for the implementation of [platformKey].
   final Map<String, List<Plugin>> pluginImplCandidates = <String, List<Plugin>>{};
+
+  // Key: the plugin name, value: the plugin name of the default implementation of [platformKey].
   final Map<String, String> defaultImplementations = <String, String>{};
   final Map<String, Plugin> pluginResolution = <String, Plugin>{};
 
   for (final Plugin plugin in plugins) {
-    final (String? resolutionPluginName, String? defaultImplementation) = _getPluginImplementationCandidate(
+    final (String? implementsPluginName, String? defaultImplPluginName) = _getPluginImplCandidateAndDefaultPlugin(
       plugin,
       platformKey,
       selectDartPluginsOnly: selectDartPluginsOnly,
     );
-    if (defaultImplementation != null) {
-      defaultImplementations[plugin.name] = defaultImplementation;
+    if (defaultImplPluginName != null) {
+      // Each plugin can only have one default implementation for this [platformKey].
+      defaultImplementations[plugin.name] = defaultImplPluginName;
     }
-    if (resolutionPluginName != null) {
-      pluginImplCandidates.putIfAbsent(resolutionPluginName, () => <Plugin>[]);
-      pluginImplCandidates[resolutionPluginName]!.add(plugin);
+    if (implementsPluginName != null) {
+      pluginImplCandidates.putIfAbsent(implementsPluginName, () => <Plugin>[]);
+      pluginImplCandidates[implementsPluginName]!.add(plugin);
     }
   }
-
+    
   bool hasResolutionError = false;
   // Now resolve all the possible resolutions to a single option for each
   // plugin, or throw if that's not possible.
   for (final MapEntry<String, List<Plugin>> implCandidatesEntry in pluginImplCandidates.entries) {
     try {
       final Plugin? resolution = _resolveImplementationOfPlugin(
-        platformKey,
-        implCandidatesEntry,
-        defaultPackageName:
-            defaultImplementations[implCandidatesEntry.key],
+        platformKey: platformKey,
+        pluginName: implCandidatesEntry.key,
+        candidates: implCandidatesEntry.value,
+        defaultPackageName: defaultImplementations[implCandidatesEntry.key],
       );
       if (resolution != null) {
         pluginResolution[implCandidatesEntry.key] = resolution;
@@ -1256,84 +1279,87 @@ Iterable<Plugin> _resolvePluginImplementationByPlatform(
   return pluginResolution.values;
 }
 
-/// Get the [resolutionPluginName] as the first choice for the plugin
-/// implementation and the [defaultImplementation] as fallback.
-(String? resolutionPluginName, String? defaultImplementation) _getPluginImplementationCandidate(
-  Plugin plugin,
-  String platformKey, {
-  bool selectDartPluginsOnly = false,
-}) {
-  String? defaultImplementation = plugin.defaultPackagePlatforms[platformKey];
-  final PluginPlatform? pluginImplementation = plugin.platforms[platformKey];
-  if (pluginImplementation == null && defaultImplementation == null) {
-    // The plugin doesn't implement this platform.
+/// Determine whether this plugin serves as implementation for an app-facing
+/// package with [implementsPluginName] or/and whether it references a default
+/// plugin [defaultImplPluginName] for the given platform [platformKey].
+///
+/// Options:
+///   * The [plugin] (e.g. 'url_launcher_linux') serves as implementation for
+///     [implementsPluginName] (e.g. 'url_launcher').
+///   * The [plugin] (e.g. 'url_launcher') references a default implementation
+///     [defaultImplPluginName] (e.g. 'url_launcher_linux').
+///   * The [plugin] (e.g. 'url_launcher') implements itself [implementsPluginName]
+///     and then serves as its own default implementation [defaultImplPluginName].
+///   * The [plugin] neither provides an implementation for [implementsPluginName]
+///     nor references a default implementation [defaultImplPluginName].
+(String? implementsPluginName, String? defaultImplPluginName) _getPluginImplCandidateAndDefaultPlugin(Plugin plugin, String platformKey) {
+  String? defaultImplPluginName = plugin.defaultPackagePlatforms[platformKey];
+  if (plugin.platforms[platformKey] == null && defaultImplPluginName == null) {
+    // The plugin doesn't implement this platform nor reference a default implementation.
     return (null, null);
   }
   final String? inlineDartImplementation = plugin.pluginDartClassPlatforms[platformKey];
   final bool hasInlineDartImplementation = inlineDartImplementation != null && inlineDartImplementation != 'none';
   String? implementsPackage = plugin.implementsPackage;
-  if (implementsPackage?.isEmpty ?? false) {
-    implementsPackage = null;
-  }
-
-  if (implementsPackage == null && defaultImplementation != null) {
-    // Default plugins use the implementation of their package, if not overriden.
-    return (null, defaultImplementation);
-  }
-
-  // Dart plugins cannot be registered via `flutter.plugin.platforms.[platform].pluginClass`
-  if (selectDartPluginsOnly && !hasInlineDartImplementation) {
-    // If there's no Dart implementation, there's nothing to register.
-    // Skip native inline implementation
-    return (null, null);
-  }
-
-  if (implementsPackage != null) {
-    // Use overriden implementation (on selectDartPluginsOnly if has inline implementation)
-    return (implementsPackage, defaultImplementation);
-  }
-  // No default given, use either a dart or a native plugin implementation.
-
-  assert(hasInlineDartImplementation || pluginImplementation != null);
-
-  if(selectDartPluginsOnly) {
-    // An app-facing package (i.e., one with no 'implements') with an inline
-    // dart implementation should be its own default implementation.
-    // Desktop platforms originally did not work that way, and enabling it
-    // unconditionally would break existing published plugins, so only treat it
-    // as such if either:
-    // - the platform is not desktop, or
-    // - the plugin requires at least Flutter 2.11 (when this opt-in logic
-    //   was added), so that existing plugins continue to work.
-    // See https://github.com/flutter/flutter/issues/87862 for details.
-    final bool isDesktop = platformKey == 'linux' || platformKey == 'macos' || platformKey == 'windows';
-    final semver.VersionConstraint? flutterConstraint = plugin.flutterConstraint;
-    final semver.Version? minFlutterVersion = flutterConstraint != null && flutterConstraint is semver.VersionRange
-        ? flutterConstraint.min
-        : null;
-    final bool hasMinVersionForImplementsRequirement =
-        minFlutterVersion != null &&
-            minFlutterVersion.compareTo(semver.Version(2, 11, 0)) >= 0;
-    if (isDesktop && !hasMinVersionForImplementsRequirement) {
-      // If it doesn't meet any of the conditions, it isn't eligible for
-      // auto-registration.
+  final bool hasInlineDartImplementation =
+      plugin.pluginDartClassPlatforms[platformKey] != null &&
+          plugin.pluginDartClassPlatforms[platformKey] != 'none';
+  if (implementsPackage == null || implementsPackage.isEmpty) {
+    // Plugin does not serve as implementation for another app-facing package.
+    if (defaultImplPluginName == null && !hasInlineDartImplementation) {
+      // Skip native inline PluginPlatform implementation.
       return (null, null);
+    }
+    if (defaultImplPluginName != null) {
+      return (null, defaultImplPluginName);
+    } else {
+      // An app-facing package (i.e., one with no 'implements') with an
+      // inline implementation should be its own default implementation.
+      // Desktop platforms originally did not work that way, and enabling
+      // it unconditionally would break existing published plugins, so
+      // only treat it as such if either:
+      // - the platform is not desktop, or
+      // - the plugin requires at least Flutter 2.11 (when this opt-in logic
+      //   was added), so that existing plugins continue to work.
+      // See https://github.com/flutter/flutter/issues/87862 for details.
+      final bool isDesktop = platformKey == 'linux' || platformKey == 'macos' || platformKey == 'windows';
+      final semver.VersionConstraint? flutterConstraint = plugin.flutterConstraint;
+      final semver.Version? minFlutterVersion = flutterConstraint != null &&
+          flutterConstraint is semver.VersionRange ? flutterConstraint.min : null;
+      final bool hasMinVersionForImplementsRequirement = minFlutterVersion != null &&
+          minFlutterVersion.compareTo(semver.Version(2, 11, 0)) >= 0;
+      if (!isDesktop || hasMinVersionForImplementsRequirement) {
+        // Dart plugin serves as its own default implementation.
+        implementsPackage = plugin.name;
+        defaultImplPluginName = plugin.name;
+        return (implementsPackage, defaultImplPluginName);
+      } else {
+        // If the inline dart implementation is desktop and it's flutter min
+        // constraint isn't fulfilled, it isn't eligible for auto-registration.
+        return (null, null);
+      }
     }
   }
 
-  // Use the plugin as default for inline implementations (dart or native)
-  implementsPackage = plugin.name;
-  defaultImplementation = plugin.name;
-  return (implementsPackage, defaultImplementation);
+  if (!hasInlineDartImplementation) {
+    // If there's no Dart implementation, there's nothing to register.
+    return (null, null);
+  }
+
+  // If it hasn't been skipped, it's a candidate for auto-registration,
+  // means it can serve as implementation for [implementsPackage],
+  // so add it as implementation candidate.
+  return (implementsPackage, null);
 }
 
-/// Get the resolved plugin name serving as implementation for a plugin.
-Plugin? _resolveImplementationOfPlugin(
-  String platformKey,
-  MapEntry<String, List<Plugin>> implCandidatesEntry, {
+/// Get the resolved plugin from the [candidates] serving as implementation for
+/// [pluginName].
+Plugin? _resolveImplementationOfPlugin({
+  required String platformKey,
+  required String pluginName,
+  required List<Plugin> candidates,
   String? defaultPackageName,
 }) {
-  final List<Plugin> candidates = implCandidatesEntry.value;
   // If there's only one candidate, use it.
   if (candidates.length == 1) {
     return candidates.first;
@@ -1345,7 +1371,7 @@ Plugin? _resolveImplementationOfPlugin(
   if (directDependencies.isNotEmpty) {
     if (directDependencies.length > 1) {
       throwToolExit(
-          'Plugin ${implCandidatesEntry.key}:$platformKey has conflicting direct dependency implementations:\n'
+          'Plugin $pluginName:$platformKey has conflicting direct dependency implementations:\n'
           '${directDependencies.map((Plugin plugin) => '  ${plugin.name}\n').join()}'
           'To fix this issue, remove all but one of these dependencies from pubspec.yaml.\n');
     } else {
@@ -1362,7 +1388,7 @@ Plugin? _resolveImplementationOfPlugin(
   }
   // Otherwise, require an explicit choice.
   if (candidates.length > 1) {
-    throwToolExit('Plugin ${implCandidatesEntry.key}:$platformKey has multiple possible implementations:\n'
+    throwToolExit('Plugin $pluginName:$platformKey has multiple possible implementations:\n'
         '${candidates.map((Plugin plugin) => '  ${plugin.name}\n').join()}'
         'To fix this issue, add one of these dependencies to pubspec.yaml.\n');
   }
