@@ -1292,7 +1292,9 @@ Iterable<Plugin> _resolvePluginImplementationByPlatform(
 ///     and then serves as its own default implementation [defaultImplPluginName].
 ///   * The [plugin] neither provides an implementation for [implementsPluginName]
 ///     nor references a default implementation [defaultImplPluginName].
-(String? implementsPluginName, String? defaultImplPluginName) _getPluginImplCandidateAndDefaultPlugin(Plugin plugin, String platformKey) {
+(String? implementsPluginName, String? defaultImplPluginName) _getPluginImplCandidateAndDefaultPlugin(Plugin plugin, String platformKey, {
+  bool selectDartPluginsOnly = false,
+}) {
   String? defaultImplPluginName = plugin.defaultPackagePlatforms[platformKey];
   if (plugin.platforms[platformKey] == null && defaultImplPluginName == null) {
     // The plugin doesn't implement this platform nor reference a default implementation.
@@ -1301,12 +1303,9 @@ Iterable<Plugin> _resolvePluginImplementationByPlatform(
   final String? inlineDartImplementation = plugin.pluginDartClassPlatforms[platformKey];
   final bool hasInlineDartImplementation = inlineDartImplementation != null && inlineDartImplementation != 'none';
   String? implementsPackage = plugin.implementsPackage;
-  final bool hasInlineDartImplementation =
-      plugin.pluginDartClassPlatforms[platformKey] != null &&
-          plugin.pluginDartClassPlatforms[platformKey] != 'none';
   if (implementsPackage == null || implementsPackage.isEmpty) {
     // Plugin does not serve as implementation for another app-facing package.
-    if (defaultImplPluginName == null && !hasInlineDartImplementation) {
+    if (selectDartPluginsOnly && defaultImplPluginName == null && !hasInlineDartImplementation) {
       // Skip native inline PluginPlatform implementation.
       return (null, null);
     }
