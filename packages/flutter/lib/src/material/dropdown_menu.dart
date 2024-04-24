@@ -383,7 +383,7 @@ class DropdownMenu<T> extends StatefulWidget {
   /// Defaults to null.
   final EdgeInsets? expandedInsets;
 
-  /// When  [DropdownMenu.enableFilter] is true, this callback is used to
+  /// When [DropdownMenu.enableFilter] is true, this callback is used to
   /// compute the list of filtered items.
   ///
   /// {@tool snippet}
