@@ -1028,7 +1028,7 @@ void main() {
         body: DropdownMenu<TestMenu>(
           requestFocusOnTap: true,
           enableFilter: true,
-          filterCallback: (List<DropdownMenuEntry<TestMenu>>entries,String filter){
+          filterCallback: (List<DropdownMenuEntry<TestMenu>> entries, String filter) {
             return entries.where((DropdownMenuEntry<TestMenu> element) => element.label.contains(filter)).toList();
           },
           dropdownMenuEntries: menuChildren,
