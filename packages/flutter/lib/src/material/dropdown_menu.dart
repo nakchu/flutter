@@ -410,9 +410,11 @@ class DropdownMenu<T> extends StatefulWidget {
   /// ```
   /// {@end-tool}
   ///
-  /// Defaults to null. If this is null and [DropdownMenu.enableFilter]
-  /// is true, the default function will return the index of the first matching
-  /// result which contains the contents of the text input field.
+  /// Defaults to null. If this parameter is null and the
+  /// [DropdownMenu.enableFilter] property is set to true, the default behavior
+  /// will be to return a filtered list. The filtered list will contain items
+  /// that match the text provided by the input field, with a case-insensitive
+  /// comparison.
   final FilterCallback<T>? filterCallback;
 
   /// When  [DropdownMenu.enableSearch] is true, this callback is used to compute
@@ -718,7 +720,6 @@ class _DropdownMenuState<T> extends State<DropdownMenu<T>> {
       } else {
         filteredEntries = filter(widget.dropdownMenuEntries, _localTextEditingController!);
       }
-      filteredEntries = filter(widget.dropdownMenuEntries, _localTextEditingController!);
     }
 
     if (widget.enableSearch) {
