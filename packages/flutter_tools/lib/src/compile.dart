@@ -365,6 +365,12 @@ class KernelCompiler {
       else '--native-assets-only',
     ];
 
+    throw '''
+YOLO
+
+$dartDefines
+''';
+
     _logger.printTrace(command.join(' '));
     final Process server = await _processManager.start(command);
 
