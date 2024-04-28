@@ -453,6 +453,7 @@ class GranularlyExtendSelectionEvent extends SelectionEvent {
     required this.forward,
     required this.isEnd,
     required this.granularity,
+    required this.collapseSelection,
   }) : super._(SelectionEventType.granularlyExtendSelection);
 
   /// Whether to extend the selection forward.
@@ -460,6 +461,9 @@ class GranularlyExtendSelectionEvent extends SelectionEvent {
 
   /// Whether this event is updating the end selection edge.
   final bool isEnd;
+
+  /// Whether this event should collapse the selection.
+  final bool collapseSelection;
 
   /// The granularity for which the selection extend.
   final TextGranularity granularity;
