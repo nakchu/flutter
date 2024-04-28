@@ -216,9 +216,10 @@ List<Map<String, Object>> _createPluginMapOfPlatform(
   List<Plugin> plugins,
   String platformKey,
 ) {
-  final Iterable<Plugin> resolvedPlatformPlugins = plugins.where((Plugin p) {
-    return p.platforms.containsKey(platformKey);
-  });
+  final Iterable<Plugin> resolvedPlatformPlugins = _filterPluginsByPlatform(
+    plugins,
+    platformKey,
+  );
 
   final Set<String> pluginNames = resolvedPlatformPlugins.map((Plugin plugin) => plugin.name).toSet();
   final List<Map<String, Object>> pluginInfo = <Map<String, Object>>[];
@@ -236,6 +237,20 @@ List<Map<String, Object>> _createPluginMapOfPlatform(
     });
   }
   return pluginInfo;
+}
+
+/// Filters [plugins] to those supported by [platformKey].
+List<Plugin> _filterPluginsByPlatform(
+    List<Plugin> plugins,
+    String platformKey,
+    ) {
+  final Iterable<Plugin> platformPlugins = plugins.where((Plugin p) {
+    return p.platforms.containsKey(platformKey);
+  });
+  return _resolvePluginImplementationByPlatform(
+    platformPlugins,
+    platformKey,
+  ).toList();
 }
 
 List<Object?> _createPluginLegacyDependencyGraph(List<Plugin> plugins) {
@@ -327,7 +342,8 @@ List<Map<String, Object?>> _extractPlatformMaps(List<Plugin> plugins, String typ
 }
 
 Future<void> _writeAndroidPluginRegistrant(FlutterProject project, List<Plugin> plugins) async {
-  final List<Plugin> methodChannelPlugins = _filterMethodChannelPlugins(plugins, AndroidPlugin.kConfigKey);
+  final List<Plugin> resolvedPlugins = _filterPluginsByPlatform(plugins, AndroidPlugin.kConfigKey);
+  final List<Plugin> methodChannelPlugins = _filterMethodChannelPlugins(resolvedPlugins, AndroidPlugin.kConfigKey);
   final List<Map<String, Object?>> androidPlugins = _extractPlatformMaps(methodChannelPlugins, AndroidPlugin.kConfigKey);
 
   final Map<String, Object> templateContext = <String, Object>{
@@ -668,7 +684,8 @@ $_dartPluginRegisterWith
 ''';
 
 Future<void> _writeIOSPluginRegistrant(FlutterProject project, List<Plugin> plugins) async {
-  final List<Plugin> methodChannelPlugins = _filterMethodChannelPlugins(plugins, IOSPlugin.kConfigKey);
+  final List<Plugin> resolvedPlugins = _filterPluginsByPlatform(plugins, IOSPlugin.kConfigKey);
+  final List<Plugin> methodChannelPlugins = _filterMethodChannelPlugins(resolvedPlugins, IOSPlugin.kConfigKey);
   final List<Map<String, Object?>> iosPlugins = _extractPlatformMaps(methodChannelPlugins, IOSPlugin.kConfigKey);
   final Map<String, Object> context = <String, Object>{
     'os': 'ios',
@@ -718,9 +735,10 @@ String _cmakeRelativePluginSymlinkDirectoryPath(CmakeBasedProject project) {
 }
 
 Future<void> _writeLinuxPluginFiles(FlutterProject project, List<Plugin> plugins) async {
-  final List<Plugin> methodChannelPlugins = _filterMethodChannelPlugins(plugins, LinuxPlugin.kConfigKey);
+  final List<Plugin> resolvedPlugins = _filterPluginsByPlatform(plugins, LinuxPlugin.kConfigKey);
+  final List<Plugin> methodChannelPlugins = _filterMethodChannelPlugins(resolvedPlugins, LinuxPlugin.kConfigKey);
   final List<Map<String, Object?>> linuxMethodChannelPlugins = _extractPlatformMaps(methodChannelPlugins, LinuxPlugin.kConfigKey);
-  final List<Plugin> ffiPlugins = _filterFfiPlugins(plugins, LinuxPlugin.kConfigKey)..removeWhere(methodChannelPlugins.contains);
+  final List<Plugin> ffiPlugins = _filterFfiPlugins(resolvedPlugins, LinuxPlugin.kConfigKey)..removeWhere(methodChannelPlugins.contains);
   final List<Map<String, Object?>> linuxFfiPlugins = _extractPlatformMaps(ffiPlugins, LinuxPlugin.kConfigKey);
   final Map<String, Object> context = <String, Object>{
     'os': 'linux',
@@ -757,7 +775,8 @@ Future<void> _writePluginCmakefile(File destinationFile, Map<String, Object> tem
 }
 
 Future<void> _writeMacOSPluginRegistrant(FlutterProject project, List<Plugin> plugins) async {
-  final List<Plugin> methodChannelPlugins = _filterMethodChannelPlugins(plugins, MacOSPlugin.kConfigKey);
+  final List<Plugin> resolvedPlugins = _filterPluginsByPlatform(plugins, MacOSPlugin.kConfigKey);
+  final List<Plugin> methodChannelPlugins = _filterMethodChannelPlugins(resolvedPlugins, MacOSPlugin.kConfigKey);
   final List<Map<String, Object?>> macosMethodChannelPlugins = _extractPlatformMaps(methodChannelPlugins, MacOSPlugin.kConfigKey);
   final Map<String, Object> context = <String, Object>{
     'os': 'macos',
@@ -824,7 +843,9 @@ Future<void> writeWindowsPluginFiles(
   TemplateRenderer templateRenderer, {
   Iterable<String>? allowedPlugins,
 }) async {
-  final List<Plugin> methodChannelPlugins = _filterMethodChannelPlugins(plugins, WindowsPlugin.kConfigKey);
+  // TODO(gustl22): recheck if anything changed from adding `allowedPlugins`
+  final List<Plugin> resolvedPlugins = _filterPluginsByPlatform(plugins, WindowsPlugin.kConfigKey);
+  final List<Plugin> methodChannelPlugins = _filterMethodChannelPlugins(resolvedPlugins, WindowsPlugin.kConfigKey);
   if (allowedPlugins != null) {
     final List<Plugin> disallowedPlugins = methodChannelPlugins
         .toList()
@@ -843,7 +864,7 @@ Future<void> writeWindowsPluginFiles(
   }
   final List<Plugin> win32Plugins = _filterPluginsByVariant(methodChannelPlugins, WindowsPlugin.kConfigKey, PluginPlatformVariant.win32);
   final List<Map<String, Object?>> windowsMethodChannelPlugins = _extractPlatformMaps(win32Plugins, WindowsPlugin.kConfigKey);
-  final List<Plugin> ffiPlugins = _filterFfiPlugins(plugins, WindowsPlugin.kConfigKey)..removeWhere(methodChannelPlugins.contains);
+  final List<Plugin> ffiPlugins = _filterFfiPlugins(resolvedPlugins, WindowsPlugin.kConfigKey)..removeWhere(methodChannelPlugins.contains);
   final List<Map<String, Object?>> windowsFfiPlugins = _extractPlatformMaps(ffiPlugins, WindowsPlugin.kConfigKey);
   final Map<String, Object> context = <String, Object>{
     'os': 'windows',
@@ -871,7 +892,8 @@ Future<void> _writeCppPluginRegistrant(Directory destination, Map<String, Object
 }
 
 Future<void> _writeWebPluginRegistrant(FlutterProject project, List<Plugin> plugins, Directory destination) async {
-  final List<Map<String, Object?>> webPlugins = _extractPlatformMaps(plugins, WebPlugin.kConfigKey);
+  final List<Plugin> resolvedPlugins = _filterPluginsByPlatform(plugins, WebPlugin.kConfigKey); // TODO(gustl22): not tested
+  final List<Map<String, Object?>> webPlugins = _extractPlatformMaps(resolvedPlugins, WebPlugin.kConfigKey);
   final Map<String, Object> context = <String, Object>{
     'methodChannelPlugins': webPlugins,
   };
@@ -1133,7 +1155,7 @@ bool hasPlugins(FlutterProject project) {
   return _readFileContent(project.flutterPluginsFile) != null;
 }
 
-/// Resolves the platform implementation for Dart-only plugins.
+/// Resolves the plugin implementations for all platforms (except Web).
 ///
 ///   * If there is only one dependency on a package that implements the
 ///     frontend plugin for the current platform, use that.
@@ -1148,8 +1170,11 @@ bool hasPlugins(FlutterProject project) {
 // TODO(stuartmorgan): Expand implementation to apply to all implementations,
 //  not just Dart-only, per the federated plugin spec.
 List<PluginInterfaceResolution> resolvePlatformImplementation(
-  List<Plugin> plugins
-) {
+  List<Plugin> plugins, {
+  required bool selectDartPluginsOnly,
+}) {
+  // TODO(gustl22): Evaluate merging the web and non-web plugin registry.
+  // https://github.com/flutter/flutter/issues/80406
   const Iterable<String> platformKeys = <String>[
     AndroidPlugin.kConfigKey,
     IOSPlugin.kConfigKey,
@@ -1157,127 +1182,217 @@ List<PluginInterfaceResolution> resolvePlatformImplementation(
     MacOSPlugin.kConfigKey,
     WindowsPlugin.kConfigKey,
   ];
-  final List<PluginInterfaceResolution> finalResolution = <PluginInterfaceResolution>[];
+  final List<PluginInterfaceResolution> pluginResolutions = <PluginInterfaceResolution>[];
   bool hasResolutionError = false;
 
   for (final String platformKey in platformKeys) {
-    // Key: the plugin name
-    final Map<String, List<Plugin>> possibleResolutions = <String, List<Plugin>>{};
-    final Map<String, String> defaultImplementations = <String, String>{};
-
-    for (final Plugin plugin in plugins) {
-      final String? defaultImplementation = plugin.defaultPackagePlatforms[platformKey];
-      if (plugin.platforms[platformKey] == null && defaultImplementation == null) {
-        // The plugin doesn't implement this platform.
-        continue;
-      }
-      String? implementsPackage = plugin.implementsPackage;
-      if (implementsPackage == null || implementsPackage.isEmpty) {
-        final bool hasInlineDartImplementation =
-            plugin.pluginDartClassPlatforms[platformKey] != null;
-        if (defaultImplementation == null && !hasInlineDartImplementation) {
-          // Skip native inline PluginPlatform implementation
-          continue;
-        }
-        if (defaultImplementation != null) {
-          defaultImplementations[plugin.name] = defaultImplementation;
-          continue;
-        } else {
-          // An app-facing package (i.e., one with no 'implements') with an
-          // inline implementation should be its own default implementation.
-          // Desktop platforms originally did not work that way, and enabling
-          // it unconditionally would break existing published plugins, so
-          // only treat it as such if either:
-          // - the platform is not desktop, or
-          // - the plugin requires at least Flutter 2.11 (when this opt-in logic
-          //   was added), so that existing plugins continue to work.
-          // See https://github.com/flutter/flutter/issues/87862 for details.
-          final bool isDesktop = platformKey == 'linux' || platformKey == 'macos' || platformKey == 'windows';
-          final semver.VersionConstraint? flutterConstraint = plugin.flutterConstraint;
-          final semver.Version? minFlutterVersion = flutterConstraint != null &&
-            flutterConstraint is semver.VersionRange ? flutterConstraint.min : null;
-          final bool hasMinVersionForImplementsRequirement = minFlutterVersion != null &&
-            minFlutterVersion.compareTo(semver.Version(2, 11, 0)) >= 0;
-          if (!isDesktop || hasMinVersionForImplementsRequirement) {
-            implementsPackage = plugin.name;
-            defaultImplementations[plugin.name] = plugin.name;
-          } else {
-            // If it doesn't meet any of the conditions, it isn't eligible for
-            // auto-registration.
-            continue;
-          }
-        }
-      }
-      // If there's no Dart implementation, there's nothing to register.
-      if (plugin.pluginDartClassPlatforms[platformKey] == null ||
-          plugin.pluginDartClassPlatforms[platformKey] == 'none') {
-        continue;
-      }
-
-      // If it hasn't been skipped, it's a candidate for auto-registration, so
-      // add it as a possible resolution.
-      possibleResolutions.putIfAbsent(implementsPackage, () => <Plugin>[]);
-      possibleResolutions[implementsPackage]!.add(plugin);
-    }
-
-    final List<Plugin> pluginResolution = <Plugin>[];
-
-    // Resolve all the possible resolutions to a single option for each plugin, or throw if that's not possible.
-    for (final MapEntry<String, List<Plugin>> entry in possibleResolutions.entries) {
-      final List<Plugin> candidates = entry.value;
-      // If there's only one candidate, use it.
-      if (candidates.length == 1) {
-        pluginResolution.add(candidates.first);
-        continue;
-      }
-      // Next, try direct dependencies of the resolving application.
-      final Iterable<Plugin> directDependencies = candidates.where((Plugin plugin) {
-        return plugin.isDirectDependency;
+    try {
+      final Iterable<PluginInterfaceResolution> platformPluginResolutions = _resolvePluginImplementationByPlatform(
+        plugins,
+        platformKey,
+        selectDartPluginsOnly: selectDartPluginsOnly,
+      ).map((Plugin plugin) {
+        return PluginInterfaceResolution(plugin: plugin, platform: platformKey);
       });
-      if (directDependencies.isNotEmpty) {
-        if (directDependencies.length > 1) {
-          globals.printError(
-              'Plugin ${entry.key}:$platformKey has conflicting direct dependency implementations:\n'
-                  '${directDependencies.map((Plugin plugin) => '  ${plugin.name}\n').join()}'
-                  'To fix this issue, remove all but one of these dependencies from pubspec.yaml.\n'
-          );
-          hasResolutionError = true;
-        } else {
-          pluginResolution.add(directDependencies.first);
-        }
-        continue;
-      }
-      // Next, defer to the default implementation if there is one.
-      final String? defaultPackageName = defaultImplementations[entry.key];
-      if (defaultPackageName != null) {
-        final int defaultIndex = candidates
-            .indexWhere((Plugin plugin) => plugin.name == defaultPackageName);
-        if (defaultIndex != -1) {
-          pluginResolution.add(candidates[defaultIndex]);
-          continue;
-        }
-      }
-      // Otherwise, require an explicit choice.
-      if (candidates.length > 1) {
-        globals.printError(
-            'Plugin ${entry.key}:$platformKey has multiple possible implementations:\n'
-                '${candidates.map((Plugin plugin) => '  ${plugin.name}\n').join()}'
-                'To fix this issue, add one of these dependencies to pubspec.yaml.\n'
-        );
-        hasResolutionError = true;
-        continue;
-      }
-    }
 
-    finalResolution.addAll(
-      pluginResolution.map((Plugin plugin) =>
-          PluginInterfaceResolution(plugin: plugin, platform: platformKey)),
-    );
+      // Add final plugin resolutions to the result array
+      pluginResolutions.addAll(platformPluginResolutions);
+    } on ToolExit catch (e) {
+      if (e.message != null) {
+        globals.printError(e.message!);
+      }
+      hasResolutionError = true;
+    }
   }
   if (hasResolutionError) {
     throwToolExit('Please resolve the plugin implementation selection errors');
   }
-  return finalResolution;
+  return pluginResolutions;
+}
+
+/// Resolves the plugins for the given [platformKey] (dart-only and/or native
+/// implementations).
+///
+///   * If there is only one dependency on a package that implements the
+///     frontend plugin for the current platform, use that.
+///   * If there is a single direct dependency on a package that implements the
+///     frontend plugin for the current platform, use that.
+///   * If there is no direct dependency on a package that implements the
+///     frontend plugin, but there is a default for the current platform,
+///     use that.
+///   * Else fail.
+///
+///  For more details, https://flutter.dev/go/federated-plugins.
+///
+Iterable<Plugin> _resolvePluginImplementationByPlatform(
+  Iterable<Plugin> plugins,
+  String platformKey, {
+  bool selectDartPluginsOnly = false,
+}) {
+  // Key: the plugin name, value: the list of plugin candidates for the implementation of [platformKey].
+  final Map<String, List<Plugin>> pluginImplCandidates = <String, List<Plugin>>{};
+
+  // Key: the plugin name, value: the plugin name of the default implementation of [platformKey].
+  final Map<String, String> defaultImplementations = <String, String>{};
+  final Map<String, Plugin> pluginResolution = <String, Plugin>{};
+
+  for (final Plugin plugin in plugins) {
+    final (String? implementsPluginName, String? defaultImplPluginName) = _getPluginImplCandidateAndDefaultPlugin(
+      plugin,
+      platformKey,
+      selectDartPluginsOnly: selectDartPluginsOnly,
+    );
+    if (defaultImplPluginName != null) {
+      // Each plugin can only have one default implementation for this [platformKey].
+      defaultImplementations[plugin.name] = defaultImplPluginName;
+    }
+    if (implementsPluginName != null) {
+      pluginImplCandidates.putIfAbsent(implementsPluginName, () => <Plugin>[]);
+      pluginImplCandidates[implementsPluginName]!.add(plugin);
+    }
+  }
+    
+  bool hasResolutionError = false;
+  // Now resolve all the possible resolutions to a single option for each
+  // plugin, or throw if that's not possible.
+  for (final MapEntry<String, List<Plugin>> implCandidatesEntry in pluginImplCandidates.entries) {
+    try {
+      final Plugin? resolution = _resolveImplementationOfPlugin(
+        platformKey: platformKey,
+        pluginName: implCandidatesEntry.key,
+        candidates: implCandidatesEntry.value,
+        defaultPackageName: defaultImplementations[implCandidatesEntry.key],
+      );
+      if (resolution != null) {
+        pluginResolution[implCandidatesEntry.key] = resolution;
+      }
+    } on ToolExit catch (e) {
+      if (e.message != null) {
+        globals.printError(e.message!);
+      }
+      hasResolutionError = true;
+    }
+  }
+  if (hasResolutionError) {
+    throwToolExit('Cannot resolve the plugin implementation for $platformKey.\n');
+  }
+  return pluginResolution.values;
+}
+
+/// Determine whether this plugin serves as implementation for an app-facing
+/// package with [implementsPluginName] or/and whether it references a default
+/// plugin [defaultImplPluginName] for the given platform [platformKey].
+///
+/// Options:
+///   * The [plugin] (e.g. 'url_launcher_linux') serves as implementation for
+///     [implementsPluginName] (e.g. 'url_launcher').
+///   * The [plugin] (e.g. 'url_launcher') references a default implementation
+///     [defaultImplPluginName] (e.g. 'url_launcher_linux').
+///   * The [plugin] (e.g. 'url_launcher') implements itself [implementsPluginName]
+///     and then serves as its own default implementation [defaultImplPluginName].
+///   * The [plugin] neither provides an implementation for [implementsPluginName]
+///     nor references a default implementation [defaultImplPluginName].
+(String? implementsPluginName, String? defaultImplPluginName) _getPluginImplCandidateAndDefaultPlugin(Plugin plugin, String platformKey, {
+  bool selectDartPluginsOnly = false,
+}) {
+  String? defaultImplPluginName = plugin.defaultPackagePlatforms[platformKey];
+  if (plugin.platforms[platformKey] == null && defaultImplPluginName == null) {
+    // The plugin doesn't implement this platform nor reference a default implementation.
+    return (null, null);
+  }
+  final String? inlineDartImplementation = plugin.pluginDartClassPlatforms[platformKey];
+  final bool hasInlineDartImplementation = inlineDartImplementation != null && inlineDartImplementation != 'none';
+  String? implementsPackage = plugin.implementsPackage;
+  if (implementsPackage == null || implementsPackage.isEmpty) {
+    // Plugin does not serve as implementation for another app-facing package.
+    if (selectDartPluginsOnly && defaultImplPluginName == null && !hasInlineDartImplementation) {
+      // Skip native inline PluginPlatform implementation.
+      return (null, null);
+    }
+    if (defaultImplPluginName != null) {
+      return (null, defaultImplPluginName);
+    } else {
+      // An app-facing package (i.e., one with no 'implements') with an
+      // inline implementation should be its own default implementation.
+      // Desktop platforms originally did not work that way, and enabling
+      // it unconditionally would break existing published plugins, so
+      // only treat it as such if either:
+      // - the platform is not desktop, or
+      // - the plugin requires at least Flutter 2.11 (when this opt-in logic
+      //   was added), so that existing plugins continue to work.
+      // See https://github.com/flutter/flutter/issues/87862 for details.
+      final bool isDesktop = platformKey == 'linux' || platformKey == 'macos' || platformKey == 'windows';
+      final semver.VersionConstraint? flutterConstraint = plugin.flutterConstraint;
+      final semver.Version? minFlutterVersion = flutterConstraint != null &&
+          flutterConstraint is semver.VersionRange ? flutterConstraint.min : null;
+      final bool hasMinVersionForImplementsRequirement = minFlutterVersion != null &&
+          minFlutterVersion.compareTo(semver.Version(2, 11, 0)) >= 0;
+      if (!isDesktop || hasMinVersionForImplementsRequirement) {
+        // Dart plugin serves as its own default implementation.
+        implementsPackage = plugin.name;
+        defaultImplPluginName = plugin.name;
+        return (implementsPackage, defaultImplPluginName);
+      } else {
+        // If the inline dart implementation is desktop and it's flutter min
+        // constraint isn't fulfilled, it isn't eligible for auto-registration.
+        return (null, null);
+      }
+    }
+  }
+
+  if (!hasInlineDartImplementation) {
+    // If there's no Dart implementation, there's nothing to register.
+    return (null, null);
+  }
+
+  // If it hasn't been skipped, it's a candidate for auto-registration,
+  // means it can serve as implementation for [implementsPackage],
+  // so add it as implementation candidate.
+  return (implementsPackage, null);
+}
+
+/// Get the resolved plugin from the [candidates] serving as implementation for
+/// [pluginName].
+Plugin? _resolveImplementationOfPlugin({
+  required String platformKey,
+  required String pluginName,
+  required List<Plugin> candidates,
+  String? defaultPackageName,
+}) {
+  // If there's only one candidate, use it.
+  if (candidates.length == 1) {
+    return candidates.first;
+  }
+  // Next, try direct dependencies of the resolving application.
+  final Iterable<Plugin> directDependencies = candidates.where((Plugin plugin) {
+    return plugin.isDirectDependency;
+  });
+  if (directDependencies.isNotEmpty) {
+    if (directDependencies.length > 1) {
+      throwToolExit(
+          'Plugin $pluginName:$platformKey has conflicting direct dependency implementations:\n'
+          '${directDependencies.map((Plugin plugin) => '  ${plugin.name}\n').join()}'
+          'To fix this issue, remove all but one of these dependencies from pubspec.yaml.\n');
+    } else {
+      return directDependencies.first;
+    }
+  }
+  // Next, defer to the default implementation if there is one.
+  if (defaultPackageName != null) {
+    final int defaultIndex = candidates
+        .indexWhere((Plugin plugin) => plugin.name == defaultPackageName);
+    if (defaultIndex != -1) {
+      return candidates[defaultIndex];
+    }
+  }
+  // Otherwise, require an explicit choice.
+  if (candidates.length > 1) {
+    throwToolExit('Plugin $pluginName:$platformKey has multiple possible implementations:\n'
+        '${candidates.map((Plugin plugin) => '  ${plugin.name}\n').join()}'
+        'To fix this issue, add one of these dependencies to pubspec.yaml.\n');
+  }
+  // No implementation provided
+  return null;
 }
 
 /// Generates the Dart plugin registrant, which allows to bind a platform
@@ -1300,6 +1415,7 @@ Future<void> generateMainDartWithPluginRegistrant(
   final List<Plugin> plugins = await findPlugins(rootProject);
   final List<PluginInterfaceResolution> resolutions = resolvePlatformImplementation(
     plugins,
+    selectDartPluginsOnly: true,
   );
   final LanguageVersion entrypointVersion = determineLanguageVersion(
     mainFile,
