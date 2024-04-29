@@ -381,7 +381,7 @@ class _SnippetChecker {
   /// The optional `dartUiLocation` argument indicates the location of the
   /// `dart:ui` code to be analyzed along with the framework code. If not
   /// supplied, the default location of the `dart:ui` code in the Flutter
-  /// repository is used (i.e. "<flutter repo>/bin/cache/pkg/sky_engine/lib/ui").
+  /// repository is used (i.e. `<flutter repo>/bin/cache/pkg/sky_engine/lib/ui`).
   _SnippetChecker(
     this._flutterPackages, {
     String? tempDirectory,
@@ -677,7 +677,8 @@ class _SnippetChecker {
                        line.contains('```swift') ||
                        line.contains('```glsl') ||
                        line.contains('```json') ||
-                       line.contains('```csv')) {
+                       line.contains('```csv') ||
+                       line.contains('```xml')) {
               inOtherBlock = true;
             } else if (line.startsWith(_uncheckedCodeBlockStartRegex)) {
               // this is an intentionally-unchecked block that doesn't appear in the API docs.
