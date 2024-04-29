@@ -2109,7 +2109,7 @@ void main() {
   });
 
   testUsingContext('does not remove the test/ directory when recreating an application project with the --empty flag', () async {
-    await _createAndAnalyzeProject(
+    await _createProject(
       projectDir,
       <String>['--no-pub', '--empty'],
       <String>[],
@@ -2117,7 +2117,7 @@ void main() {
 
     projectDir.childDirectory('test').childFile('example_test.dart').createSync(recursive: true);
 
-    await _createAndAnalyzeProject(
+    return _createProject(
       projectDir,
       <String>['--no-pub', '--empty'],
       <String>['test/example_test.dart'],
