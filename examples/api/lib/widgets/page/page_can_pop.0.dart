@@ -73,7 +73,7 @@ class MyRouterDelegate extends RouterDelegate<Object> with PopNavigatorRouterDel
     ) ?? false;
   }
 
-  Future<void> _handlePopDetails(bool didPop) async {
+  Future<void> _handlePopDetails(bool didPop, void result) async {
     if (didPop) {
       showDetailPage = false;
       return;
