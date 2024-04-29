@@ -433,6 +433,7 @@ class _DropdownMenuState<T> extends State<DropdownMenu<T>> {
   int? currentHighlight;
   double? leadingPadding;
   bool _menuHasEnabledItem = false;
+  late final FocusNode _focusNode;
   TextEditingController? _localTextEditingController;
 
   @override
@@ -456,6 +457,18 @@ class _DropdownMenuState<T> extends State<DropdownMenu<T>> {
       );
     }
     refreshLeadingPadding();
+    _focusNode = FocusNode(
+      canRequestFocus: canRequestFocus(),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final bool widgetCanRequestFocus = canRequestFocus();
+    if (widgetCanRequestFocus != _focusNode.canRequestFocus) {
+      _focusNode.canRequestFocus = widgetCanRequestFocus;
+    }
   }
 
   @override
@@ -498,6 +511,10 @@ class _DropdownMenuState<T> extends State<DropdownMenu<T>> {
           selection: TextSelection.collapsed(offset: filteredEntries[index].label.length),
         );
       }
+    }
+    final bool widgetCanRequestFocus = canRequestFocus();
+    if (widgetCanRequestFocus != _focusNode.canRequestFocus) {
+      _focusNode.canRequestFocus = widgetCanRequestFocus;
     }
   }
 
@@ -749,8 +766,8 @@ class _DropdownMenuState<T> extends State<DropdownMenu<T>> {
         final Widget textField = TextField(
             key: _anchorKey,
             mouseCursor: effectiveMouseCursor,
-            focusNode: widget.focusNode,
-            canRequestFocus: canRequestFocus(),
+            focusNode: _focusNode,
+            readOnly: !canRequestFocus(),
             enableInteractiveSelection: canRequestFocus(),
             textAlignVertical: TextAlignVertical.center,
             style: effectiveTextStyle,
