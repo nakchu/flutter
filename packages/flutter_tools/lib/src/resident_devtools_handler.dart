@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// TODO(bkonyi): remove this file when ready to serve DevTools from DDS.
+
 import 'dart:async';
 
 import 'package:browser_launcher/browser_launcher.dart';
@@ -108,18 +110,6 @@ class FlutterResidentDevtoolsHandler implements ResidentDevtoolsHandler {
     if (_devToolsLauncher.activeDevToolsServer == null || _shutdown) {
       assert(!_readyToAnnounce);
       return;
-    }
-
-    final Uri? devToolsUrl = _devToolsLauncher.devToolsUrl;
-    if (devToolsUrl != null) {
-      for (final FlutterDevice? device in flutterDevices) {
-        if (device == null) {
-          continue;
-        }
-        // Notify the DDS instances that there's a DevTools instance available so they can correctly
-        // redirect DevTools related requests.
-        device.device?.dds.setExternalDevToolsUri(devToolsUrl);
-      }
     }
 
     Future<void> callServiceExtensions() async {
