@@ -1808,7 +1808,7 @@ class TextInput {
 
   Future<dynamic> _handleTextInputInvocation(MethodCall methodCall) async {
     final String method = methodCall.method;
-    switch (methodCall.method) {
+    switch (method) {
       case 'TextInputClient.focusElement':
         final List<dynamic> args = methodCall.arguments as List<dynamic>;
         _scribbleClients[args[0]]?.onScribbleFocus(Offset((args[1] as num).toDouble(), (args[2] as num).toDouble()));
