@@ -28,6 +28,7 @@ import 'theme.dart';
 const double _kTabHeight = 46.0;
 const double _kTextAndIconTabHeight = 72.0;
 const double _kStartOffset = 52.0;
+const double _kMaxLabelTextScaleFactor = 2.0; // TODO(tahatesser): Add link to Material spec when available, https://github.com/flutter/flutter/issues/147217.
 
 /// Defines how the bounds of the selected tab indicator are computed.
 ///
@@ -145,7 +146,10 @@ class Tab extends StatelessWidget implements PreferredSizeWidget {
   final double? height;
 
   Widget _buildLabelText() {
-    return child ?? Text(text!, softWrap: false, overflow: TextOverflow.fade);
+    return MediaQuery.withClampedTextScaling(
+      maxScaleFactor: _kMaxLabelTextScaleFactor,
+      child: child ?? Text(text!, softWrap: false, overflow: TextOverflow.fade),
+    );
   }
 
   @override
