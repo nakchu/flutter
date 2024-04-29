@@ -512,6 +512,7 @@ abstract class RenderSliverFloatingPersistentHeader extends RenderSliverPersiste
   late Animation<double> _animation;
   double? _lastActualScrollOffset;
   double? _effectiveScrollOffset;
+  double _effectiveOverlap = 0.0;
   // Important for pointer scrolling, which does not have the same concept of
   // a hold and release scroll movement, like dragging.
   // This keeps track of the last ScrollDirection when scrolling started.
@@ -579,7 +580,7 @@ abstract class RenderSliverFloatingPersistentHeader extends RenderSliverPersiste
     final double layoutExtent = maxExtent - constraints.scrollOffset;
     geometry = SliverGeometry(
       scrollExtent: maxExtent,
-      paintOrigin: math.min(constraints.overlap, 0.0),
+      paintOrigin: _effectiveOverlap == 0 ? 0.0 : constraints.overlap,
       paintExtent: clampDouble(paintExtent, 0.0, constraints.remainingPaintExtent),
       layoutExtent: clampDouble(layoutExtent, 0.0, constraints.remainingPaintExtent),
       maxPaintExtent: maxExtent + stretchOffset,
@@ -649,6 +650,7 @@ abstract class RenderSliverFloatingPersistentHeader extends RenderSliverPersiste
   void performLayout() {
     final SliverConstraints constraints = this.constraints;
     final double maxExtent = this.maxExtent;
+    final double overlap = math.max(0, constraints.overlap);
     if (_lastActualScrollOffset != null && // We've laid out at least once to get an initial position, and either
         ((constraints.scrollOffset < _lastActualScrollOffset!) || // we are scrolling back, so should reveal, or
          (_effectiveScrollOffset! < maxExtent))) { // some part of it is visible, so should shrink or reveal as appropriate.
@@ -660,6 +662,7 @@ abstract class RenderSliverFloatingPersistentHeader extends RenderSliverPersiste
         if (_effectiveScrollOffset! > maxExtent) {
           // We're scrolled off-screen, but should reveal, so pretend we're just at the limit.
           _effectiveScrollOffset = maxExtent;
+          _effectiveOverlap = overlap;
         }
       } else {
         if (delta > 0.0) {
@@ -668,8 +671,10 @@ abstract class RenderSliverFloatingPersistentHeader extends RenderSliverPersiste
         }
       }
       _effectiveScrollOffset = clampDouble(_effectiveScrollOffset! - delta, 0.0, constraints.scrollOffset);
+      _effectiveOverlap = clampDouble(_effectiveOverlap, 0, overlap);
     } else {
       _effectiveScrollOffset = constraints.scrollOffset;
+      _effectiveOverlap = 0.0;
     }
     final bool overlapsContent = _effectiveScrollOffset! < constraints.scrollOffset;
 
