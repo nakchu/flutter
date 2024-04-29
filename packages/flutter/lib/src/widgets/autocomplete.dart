@@ -4,15 +4,17 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import 'actions.dart';
 import 'basic.dart';
-import 'container.dart';
 import 'editable_text.dart';
 import 'focus_manager.dart';
 import 'framework.dart';
 import 'inherited_notifier.dart';
+import 'media_query.dart';
 import 'overlay.dart';
 import 'shortcuts.dart';
 import 'tap_region.dart';
@@ -208,18 +210,18 @@ class RawAutocomplete<T extends Object> extends StatefulWidget {
   /// {@template flutter.widgets.RawAutocomplete.optionsViewBuilder}
   /// Builds the selectable options widgets from a list of options objects.
   ///
-  /// The options are displayed floating below or above the field using a
-  /// [CompositedTransformFollower] inside of an [Overlay], not at the same
-  /// place in the widget tree as [RawAutocomplete]. To control whether it opens
-  /// upward or downward, use [optionsViewOpenDirection].
+  /// The options are displayed floating below or above the field inside of an
+  /// [Overlay], not at the same place in the widget tree as [RawAutocomplete].
+  /// To control whether it opens upward or downward, use
+  /// [optionsViewOpenDirection].
   ///
   /// In order to track which item is highlighted by keyboard navigation, the
   /// resulting options will be wrapped in an inherited
-  /// [AutocompleteHighlightedOption] widget.
-  /// Inside this callback, the index of the highlighted option can be obtained
-  /// from [AutocompleteHighlightedOption.of] to display the highlighted option
-  /// with a visual highlight to indicate it will be the option selected from
-  /// the keyboard.
+  /// [AutocompleteHighlightedOption] widget. Inside this callback, the index of
+  /// the highlighted option can be obtained from
+  /// [AutocompleteHighlightedOption.of] to display the highlighted option with
+  /// a visual highlight to indicate it will be the option selected from the
+  /// keyboard.
   ///
   /// {@endtemplate}
   final AutocompleteOptionsViewBuilder<T> optionsViewBuilder;
@@ -300,8 +302,8 @@ class RawAutocomplete<T extends Object> extends StatefulWidget {
 }
 
 class _RawAutocompleteState<T extends Object> extends State<RawAutocomplete<T>> {
-  final GlobalKey _fieldKey = GlobalKey();
-  final LayerLink _optionsLayerLink = LayerLink();
+  final GlobalKey _fieldKey = GlobalKey(debugLabel: kReleaseMode ? null : 'AutocompleteFieldView');
+
   final OverlayPortalController _optionsViewController = OverlayPortalController(debugLabel: '_RawAutocompleteState');
 
   TextEditingController? _internalTextEditingController;
@@ -419,29 +421,14 @@ class _RawAutocompleteState<T extends Object> extends State<RawAutocomplete<T>> 
   }
 
   Widget _buildOptionsView(BuildContext context) {
-    final TextDirection textDirection = Directionality.of(context);
-    final Alignment followerAlignment = switch (widget.optionsViewOpenDirection) {
-      OptionsViewOpenDirection.up => AlignmentDirectional.bottomStart,
-      OptionsViewOpenDirection.down => AlignmentDirectional.topStart,
-    }.resolve(textDirection);
-    final Alignment targetAnchor = switch (widget.optionsViewOpenDirection) {
-      OptionsViewOpenDirection.up => AlignmentDirectional.topStart,
-      OptionsViewOpenDirection.down => AlignmentDirectional.bottomStart,
-    }.resolve(textDirection);
-
-    return CompositedTransformFollower(
-      link: _optionsLayerLink,
-      showWhenUnlinked: false,
-      targetAnchor: targetAnchor,
-      followerAnchor: followerAlignment,
-      child: TextFieldTapRegion(
-        child: AutocompleteHighlightedOption(
-          highlightIndexNotifier: _highlightedOptionIndex,
-          child: Builder(
-            builder: (BuildContext context) => widget.optionsViewBuilder(context, _select, _options),
-          ),
-        ),
-      ),
+    return _OptionsView(
+      fieldKey: _fieldKey,
+      highlightedOptionIndex: _highlightedOptionIndex,
+      optionsViewOpenDirection: widget.optionsViewOpenDirection,
+      textDirection: Directionality.of(context),
+      optionsViewBuilder: (BuildContext context) {
+        return widget.optionsViewBuilder(context, _select, _options);
+      },
     );
   }
 
@@ -493,21 +480,170 @@ class _RawAutocompleteState<T extends Object> extends State<RawAutocomplete<T>> 
       controller: _optionsViewController,
       overlayChildBuilder: _buildOptionsView,
       child: TextFieldTapRegion(
-        child: Container(
-          key: _fieldKey,
-          child: Shortcuts(
-            shortcuts: _shortcuts,
-            child: Actions(
-              actions: _actionMap,
-              child: CompositedTransformTarget(
-                link: _optionsLayerLink,
-                child: fieldView,
-              ),
-            ),
+        child: Shortcuts(
+          shortcuts: _shortcuts,
+          child: Actions(
+            key: _fieldKey,
+            actions: _actionMap,
+            child: fieldView,
           ),
         ),
       ),
     );
+  }
+}
+
+class _OptionsView extends StatefulWidget {
+  const _OptionsView({
+    required this.fieldKey,
+    required this.highlightedOptionIndex,
+    required this.optionsViewOpenDirection,
+    required this.optionsViewBuilder,
+    required this.textDirection,
+  });
+
+  /// The key for the field that the options positions itself based on.
+  final GlobalKey fieldKey;
+
+  /// The index of the highlighted option.
+  ///
+  /// Options appear to be selected, but do not use the [Focus] system, since
+  /// focus remains on the field even during option selection.
+  final ValueNotifier<int> highlightedOptionIndex;
+
+  /// Builds the options visuals.
+  final WidgetBuilder optionsViewBuilder;
+
+  /// Whether the options open above or below the anchor.
+  final OptionsViewOpenDirection optionsViewOpenDirection;
+
+  /// Whether to prefer going to the left or to the right.
+  final TextDirection textDirection;
+
+  @override
+  State<_OptionsView> createState() => _OptionsViewState();
+}
+
+class _OptionsViewState extends State<_OptionsView> {
+  late Rect _fieldRect;
+
+  /// Returns the paint bounds of the field given its key, in the coordinate
+  /// system of the options [Overlay].
+  static Rect _getRect(GlobalKey fieldKey) {
+    final BuildContext fieldContext = fieldKey.currentContext!;
+    final RenderBox overlay = Overlay.of(fieldContext).context.findRenderObject()! as RenderBox;
+    final RenderBox fieldRenderBox = fieldContext.findRenderObject()! as RenderBox;
+    return MatrixUtils.transformRect(
+      fieldRenderBox.getTransformTo(overlay),
+      fieldRenderBox.paintBounds,
+    );
+  }
+
+  /// Updates the _fieldRect with its corresponding widget, giving a one frame
+  /// delay to allow the field to lay itself out.
+  void _updateFieldRect() {
+    setState(() {
+      _fieldRect = _getRect(widget.fieldKey);
+    });
+    SchedulerBinding.instance.addPostFrameCallback((Duration duration) {
+      final Rect nextFieldRect = _getRect(widget.fieldKey);
+      if (nextFieldRect != _fieldRect) {
+        setState(() {
+          _fieldRect = nextFieldRect;
+        });
+      }
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _updateFieldRect();
+  }
+
+  @override
+  void didUpdateWidget(_OptionsView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _updateFieldRect();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Rect screenRect = Offset.zero & MediaQuery.of(context).size;
+    print('justin build ${MediaQuery.of(context).size} vs $_fieldRect');
+    // TODO(justinmc): This doesn't work (one frame late?). I need a programmatic
+    // way to listen to screen size changes...
+    final Rect fieldRectOnScreen = _fieldRect.intersect(screenRect);
+    return CustomSingleChildLayout(
+      delegate: _OptionsViewLayout(
+        anchorRect: fieldRectOnScreen,
+        optionsViewOpenDirection: widget.optionsViewOpenDirection,
+        textDirection: Directionality.of(context),
+      ),
+      child: TextFieldTapRegion(
+        child: AutocompleteHighlightedOption(
+          highlightIndexNotifier: widget.highlightedOptionIndex,
+          // optionsViewBuilder must be able to look up
+          // AutocompleteHighlightedOption in its context.
+          child: Builder(
+            builder: (BuildContext context) {
+              return widget.optionsViewBuilder(context);
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Positions the options view either above or below the field based on
+// optionsViewOpenDirection.
+class _OptionsViewLayout extends SingleChildLayoutDelegate {
+  _OptionsViewLayout({
+    required this.anchorRect,
+    required this.optionsViewOpenDirection,
+    required this.textDirection,
+  });
+
+  // Rect of the field that the options should be positioned relative to.
+  final Rect anchorRect;
+
+  // Whether the options open above or below the anchor.
+  final OptionsViewOpenDirection optionsViewOpenDirection;
+
+  // Whether to prefer going to the left or to the right.
+  final TextDirection textDirection;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
+    return BoxConstraints(
+      maxWidth: anchorRect.width,
+      maxHeight: switch (optionsViewOpenDirection) {
+        OptionsViewOpenDirection.down => constraints.maxHeight - anchorRect.top,
+        OptionsViewOpenDirection.up => anchorRect.top,
+      },
+    );
+  }
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    return switch ((optionsViewOpenDirection, textDirection)) {
+      (OptionsViewOpenDirection.down, TextDirection.ltr) =>
+          anchorRect.bottomLeft,
+      (OptionsViewOpenDirection.down, TextDirection.rtl) =>
+          Offset(anchorRect.right - childSize.width, anchorRect.bottom),
+      (OptionsViewOpenDirection.up, TextDirection.ltr) =>
+          Offset(anchorRect.left, anchorRect.top - childSize.height),
+      (OptionsViewOpenDirection.up, TextDirection.rtl) =>
+          Offset(anchorRect.right - childSize.width, anchorRect.top - childSize.height),
+    };
+  }
+
+  @override
+  bool shouldRelayout(_OptionsViewLayout oldDelegate) {
+    return optionsViewOpenDirection != oldDelegate.optionsViewOpenDirection
+        || textDirection != oldDelegate.textDirection
+        || anchorRect != oldDelegate.anchorRect;
   }
 }
 
