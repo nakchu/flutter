@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+import 'dart:ui';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -143,6 +145,106 @@ void main() {
     expect(dragCallbacks, <String>['onStart', 'onEnd']);
     verticalDrag.dispose();
     dragCallbacks.clear();
+  });
+
+  testGesture('The onOutOfBoundary is executed when the drag gesture exceeds the boundary.', (GestureTester tester) {
+      final PanGestureRecognizer pan = PanGestureRecognizer(
+        createDragBoundary: (Offset initialPosition) {
+          return DragRectBoundary(
+            boundary: const Rect.fromLTWH(100, 100, 300, 300),
+            rectOffset: const Offset(50, 50),
+            rectSize: const Size(100, 100)
+          );
+        },
+        boundaryBehavior: DragOutOfBoundaryBehavior.callOutOfBoundary,
+      );
+      final List<String> dragCallbacks = <String>[];
+      pan
+        ..onlyAcceptDragOnThreshold = false
+        ..onStart = (DragStartDetails details) {
+          dragCallbacks.add('onStart');
+        }
+        ..onUpdate = (DragUpdateDetails details) {
+          dragCallbacks.add('onUpdate');
+        }
+        ..onOutOfBoundary = (DragOutOfBoundaryDetails details) {
+          dragCallbacks.add('onOutOfBoundary');
+        }
+        ..onEnd = (DragEndDetails details) {
+          dragCallbacks.add('onEnd');
+        }
+        ..onCancel = () {
+          dragCallbacks.add('onCancel');
+        };
+      const PointerDownEvent down = PointerDownEvent(
+        pointer: 6,
+        position: Offset(200.0, 200.0),
+      );
+      const PointerMoveEvent move = PointerMoveEvent(
+        pointer: 6,
+        delta: Offset(200.0, 200.0),
+        position: Offset(400.0, 400.0),
+      );
+      const PointerUpEvent up = PointerUpEvent(
+        pointer: 6,
+        position: Offset(400.0, 400.0),
+      );
+      pan.addPointer(down);
+      tester.closeArena(down.pointer);
+      tester.route(down);
+      tester.route(move);
+      tester.route(up);
+      expect(dragCallbacks, <String>['onStart', 'onUpdate', 'onOutOfBoundary', 'onEnd']);
+  });
+
+  testGesture('The drag gesture is cancelled when it exceeds the boundary.', (GestureTester tester) {
+      final PanGestureRecognizer pan = PanGestureRecognizer(
+        createDragBoundary: (Offset initialPosition) {
+          return DragRectBoundary(
+            boundary: const Rect.fromLTWH(100, 100, 300, 300),
+            rectOffset: const Offset(50, 50),
+            rectSize: const Size(100, 100)
+          );
+        },
+        boundaryBehavior: DragOutOfBoundaryBehavior.cancel,
+      );
+      final List<String> dragCallbacks = <String>[];
+      pan
+        ..onlyAcceptDragOnThreshold = false
+        ..onStart = (DragStartDetails details) {
+          dragCallbacks.add('onStart');
+        }
+        ..onUpdate = (DragUpdateDetails details) {
+          dragCallbacks.add('onUpdate');
+        }
+        ..onOutOfBoundary = (DragOutOfBoundaryDetails details) {
+          dragCallbacks.add('onOutOfBoundary');
+        }
+        ..onEnd = (DragEndDetails details) {
+          dragCallbacks.add('onEnd');
+        }
+        ..onCancel = () {
+          dragCallbacks.add('onCancel');
+        };
+      const PointerDownEvent down = PointerDownEvent(
+        pointer: 6,
+        position: Offset(200.0, 200.0),
+      );
+      const PointerMoveEvent move = PointerMoveEvent(
+        pointer: 6,
+        delta: Offset(200.0, 200.0),
+        position: Offset(400.0, 400.0),
+      );
+      const PointerUpEvent up = PointerUpEvent(
+        pointer: 6,
+        position: Offset(400.0, 400.0),
+      );
+      pan.addPointer(down);
+      tester.closeArena(down.pointer);
+      tester.route(down);
+      tester.route(move);
+      tester.route(up);
+      expect(dragCallbacks, <String>['onStart', 'onUpdate', 'onCancel']);
   });
 
   group('Recognizers on different button filters:', () {

@@ -18,6 +18,7 @@ export 'velocity_tracker.dart' show Velocity;
 ///  * [DragStartDetails], the details for [GestureDragStartCallback].
 ///  * [DragUpdateDetails], the details for [GestureDragUpdateCallback].
 ///  * [DragEndDetails], the details for [GestureDragEndCallback].
+///  * [DragOutOfBoundaryDetails], the details for [GestureDragOutOfBoundaryCallback].
 class DragDownDetails {
   /// Creates details for a [GestureDragDownCallback].
   DragDownDetails({
@@ -121,6 +122,7 @@ typedef GestureDragStartCallback = void Function(DragStartDetails details);
 ///  * [DragDownDetails], the details for [GestureDragDownCallback].
 ///  * [DragStartDetails], the details for [GestureDragStartCallback].
 ///  * [DragEndDetails], the details for [GestureDragEndCallback].
+///  * [DragOutOfBoundaryDetails], the details for [GestureDragOutOfBoundaryCallback].
 class DragUpdateDetails {
   /// Creates details for a [GestureDragUpdateCallback].
   ///
@@ -132,6 +134,7 @@ class DragUpdateDetails {
     this.primaryDelta,
     required this.globalPosition,
     Offset? localPosition,
+    this.isWithinBoundary = true,
   }) : assert(
          primaryDelta == null
            || (primaryDelta == delta.dx && delta.dy == 0.0)
@@ -182,6 +185,16 @@ class DragUpdateDetails {
   /// Defaults to [globalPosition] if not specified in the constructor.
   final Offset localPosition;
 
+
+  /// Indicates whether the drag gesture is within the boundary.
+  ///
+  /// This property is true if the drag gesture is within the boundary or has no bounds;
+  /// otherwise, false.It can be used to determine whether to take certain actions
+  /// based on whetherthe drag gesture is within the boundary.
+  ///
+  /// Defaults to true if not specified in the constructor.
+  final bool isWithinBoundary;
+
   @override
   String toString() => '${objectRuntimeType(this, 'DragUpdateDetails')}($delta)';
 }
@@ -205,6 +218,7 @@ typedef GestureDragUpdateCallback = void Function(DragUpdateDetails details);
 ///  * [DragDownDetails], the details for [GestureDragDownCallback].
 ///  * [DragStartDetails], the details for [GestureDragStartCallback].
 ///  * [DragUpdateDetails], the details for [GestureDragUpdateCallback].
+///  * [DragOutOfBoundaryDetails], the details for [GestureDragOutOfBoundaryCallback].
 class DragEndDetails {
   /// Creates details for a [GestureDragEndCallback].
   ///
@@ -260,3 +274,70 @@ class DragEndDetails {
   @override
   String toString() => '${objectRuntimeType(this, 'DragEndDetails')}($velocity)';
 }
+
+/// Details object for callbacks that use [GestureDragOutOfBoundaryCallback].
+///
+/// See also:
+///
+///  * [DragGestureRecognizer.onEnd], which uses [GestureDragEndCallback].
+///  * [DragDownDetails], the details for [GestureDragDownCallback].
+///  * [DragStartDetails], the details for [GestureDragStartCallback].
+///  * [DragUpdateDetails], the details for [GestureDragUpdateCallback].
+///  * [DragEndDetails], the details for [GestureDragEndCallback].
+class DragOutOfBoundaryDetails {
+  /// Creates details for a [GestureDragOutOfBoundaryCallback].
+  ///
+  /// The [nearestPositionWithinBoundary] parameter represents the closest
+  /// position within the boundary to the current drag location.
+  ///
+  /// The [globalPosition] parameter represents the global position of the
+  /// pointer when the drag gesture has been completed and has moved outside
+  /// the boundary. It defaults to [Offset.zero] if not provided.
+  ///
+  /// The [localPosition] parameter represents the local position of
+  /// the pointer when the drag gesture has been completed and has moved
+  /// outside the boundary. It defaults to [globalPosition] if not provided.
+  DragOutOfBoundaryDetails({
+    required this.nearestPositionWithinBoundary,
+    this.globalPosition = Offset.zero,
+    Offset? localPosition,
+  }) : localPosition = localPosition ?? globalPosition;
+
+  /// The nearest position within the boundary.
+  ///
+  /// This property represents the closest position within the boundary
+  /// to the current drag location.
+  final Offset nearestPositionWithinBoundary;
+
+  /// The global position the pointer is located at when the drag
+  /// gesture has been completed.
+  ///
+  /// Defaults to the origin if not specified in the constructor.
+  ///
+  /// See also:
+  ///
+  ///  * [localPosition], which is the [globalPosition] transformed to the
+  ///    coordinate space of the event receiver.
+  final Offset globalPosition;
+
+  /// The local position in the coordinate system of the event receiver when
+  /// the drag gesture has been completed.
+  ///
+  /// Defaults to [globalPosition] if not specified in the constructor.
+  final Offset localPosition;
+
+  @override
+  String toString() => '${objectRuntimeType(this, 'DragOutOfBoundaryDetails')}($globalPosition)';
+}
+
+/// {@template flutter.gestures.dragdetails.GestureDragOutOfBoundaryCallback}
+/// Signature for a callback that is invoked when a drag gesture exceeds its boundary.
+///
+/// The `details` object provides information about the state of the drag gesture
+/// when it moved outside the boundary. It includes the global location of the
+/// pointer when the drag gesture has been completed and has moved outside the boundary,
+/// and the nearest position within the boundary to the current drag location.
+/// {@endtemplate}
+///
+/// See [DragGestureRecognizer.onOutOfBoundary].
+typedef GestureDragOutOfBoundaryCallback = void Function(DragOutOfBoundaryDetails);

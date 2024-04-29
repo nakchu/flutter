@@ -533,6 +533,26 @@ abstract class OneSequenceGestureRecognizer extends GestureRecognizer {
     }
   }
 
+  /// Stops events related to all pointers from being routed to this recognizer.
+  ///
+  /// If there are any tracked pointers, It then calls [didStopTrackingLastPointer]
+  /// with the pointer ID of the last pointer that was being tracked.
+  ///
+  /// This method is typically called when a gesture recognizer stops recognizing
+  /// a gesture, such as when the gesture has been cancelled.
+  @protected
+  void stopAllTrackingPointer() {
+    if (_trackedPointers.isEmpty) {
+      return;
+    }
+    final List<int> localTrackedPointers = List<int>.from(_trackedPointers);
+    _trackedPointers.clear();
+    for (final int pointer in localTrackedPointers) {
+      GestureBinding.instance.pointerRouter.removeRoute(pointer, handleEvent);
+    }
+    didStopTrackingLastPointer(localTrackedPointers.last);
+  }
+
   /// Stops tracking the pointer associated with the given event if the event is
   /// a [PointerUpEvent] or a [PointerCancelEvent] event.
   @protected
