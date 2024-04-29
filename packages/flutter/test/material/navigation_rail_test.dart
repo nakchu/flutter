@@ -7,6 +7,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import '../widgets/semantics_tester.dart';
 
 void main() {
@@ -3629,6 +3630,44 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('NavigationRail labels shall not overflow if longer texts provided - extended', (WidgetTester tester) async {
+    await _pumpNavigationRail(
+      tester,
+      navigationRail: NavigationRail(
+        selectedIndex: 1,
+        extended: true,
+        destinations: const <NavigationRailDestination>[
+          NavigationRailDestination(
+            icon: Icon(Icons.favorite_border),
+            selectedIcon: Icon(Icons.favorite),
+            label: Text('Abc'),
+          ),
+          NavigationRailDestination(
+            icon: Icon(Icons.bookmark_border),
+            selectedIcon: Icon(Icons.bookmark),
+            label: Text('Longer bookmark text'),
+          ),
+        ],
+      ),
+    );
+
+    expect(find.byType(NavigationRail), findsOneWidget);
+    final Finder longLabelNavDestinationFinder = find.text(
+      'Longer bookmark text',
+    );
+    final Finder flexibleWithNavDestinationText = find.descendant(
+      of: find.byType(Flexible),
+      matching: find.descendant(
+        of: find.byType(Align),
+        matching: find.descendant(
+          of: find.byType(FadeTransition),
+          matching: longLabelNavDestinationFinder,
+        ),
+      ),
+    );
+    expect(flexibleWithNavDestinationText, findsOneWidget);
   });
 
   group('Material 2', () {
