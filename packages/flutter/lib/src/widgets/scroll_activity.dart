@@ -444,6 +444,10 @@ class ScrollDragController implements Drag {
     delegate.goBallistic(0.0);
   }
 
+  @override
+  void outOfBounds(DragOutOfBoundaryDetails details) {
+  }
+
   /// Called by the delegate when it is no longer sending events to this object.
   @mustCallSuper
   void dispose() {

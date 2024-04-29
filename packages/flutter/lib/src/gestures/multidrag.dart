@@ -11,6 +11,7 @@ import 'arena.dart';
 import 'binding.dart';
 import 'constants.dart';
 import 'drag.dart';
+import 'drag_boundary.dart';
 import 'drag_details.dart';
 import 'events.dart';
 import 'recognizer.dart';
@@ -20,8 +21,14 @@ export 'dart:ui' show Offset, PointerDeviceKind;
 
 export 'arena.dart' show GestureDisposition;
 export 'drag.dart' show Drag;
+export 'drag_boundary.dart' show DragBoundary, DragOutOfBoundaryBehavior, DragPointBoundary, DragRectBoundary;
 export 'events.dart' show PointerDownEvent;
 export 'gesture_settings.dart' show DeviceGestureSettings;
+
+/// Signature for create boundaries
+///
+/// Used by [MultiDragPointerState.createDragBoundary].
+typedef CreateMultiDragBoundary = DragBoundary Function(Offset initialPosition);
 
 /// Signature for when [MultiDragGestureRecognizer] recognizes the start of a drag gesture.
 typedef GestureMultiDragStartCallback = Drag? Function(Offset position);
@@ -89,7 +96,7 @@ abstract class MultiDragPointerState {
     _arenaEntry!.resolve(disposition);
   }
 
-  void _move(PointerMoveEvent event) {
+  void _move(PointerMoveEvent event, bool isWithinBoundary) {
     assert(_arenaEntry != null);
     if (!event.synthesized) {
       _velocityTracker.addPosition(event.timeStamp, event.position);
@@ -101,6 +108,7 @@ abstract class MultiDragPointerState {
         sourceTimeStamp: event.timeStamp,
         delta: event.delta,
         globalPosition: event.position,
+        isWithinBoundary: isWithinBoundary,
       ));
     } else {
       assert(pendingDelta != null);
@@ -169,6 +177,13 @@ abstract class MultiDragPointerState {
     }
   }
 
+  void _outOfBounds(Offset globalPosition, Offset nearestPositionWithinBoundary) {
+    _client?.outOfBounds(DragOutOfBoundaryDetails(
+      globalPosition: globalPosition,
+      nearestPositionWithinBoundary: nearestPositionWithinBoundary,
+    ));
+  }
+
   void _cancel() {
     assert(_arenaEntry != null);
     if (_client != null) {
@@ -230,6 +245,8 @@ abstract class MultiDragGestureRecognizer extends GestureRecognizer {
     required super.debugOwner,
     super.supportedDevices,
     AllowedButtonsFilter? allowedButtonsFilter,
+    this.outOfBoundaryBehavior = DragOutOfBoundaryBehavior.none,
+    this.createDragBoundary,
   }) : super(allowedButtonsFilter: allowedButtonsFilter ?? _defaultButtonAcceptBehavior);
 
   // Accept the input if, and only if, [kPrimaryButton] is pressed.
@@ -241,7 +258,29 @@ abstract class MultiDragGestureRecognizer extends GestureRecognizer {
   /// [Drag] object returned by this callback.
   GestureMultiDragStartCallback? onStart;
 
+  /// Called when the drag gesture starts. The returned [DragBoundary] will
+  /// be used to define the boundary for this drag gesture.
+  ///
+  /// See also:
+  /// * [DragBoundary], which defines the boundary of the drag gesture.
+  /// * [CreateMultiDragBoundary], which is a callback that creates a [DragBoundary].
+  @protected
+  final CreateMultiDragBoundary? createDragBoundary;
+
+  /// Configures the behavior when the drag gesture exceeds its boundary.
+  ///
+  /// If [DragOutOfBoundaryBehavior.none] is set, the drag gesture will
+  /// continue normally even when it moves outside of its boundary.
+  ///
+  /// If [DragOutOfBoundaryBehavior.callOutOfBoundary] is set,
+  /// the [Drag.outOfBounds] callback is called when the boundary is exceeded
+  ///
+  /// If [DragOutOfBoundaryBehavior.cancel] is set, the drag gesture will be cancelled
+  /// immediately when it moves outside of its boundary.
+  final DragOutOfBoundaryBehavior outOfBoundaryBehavior;
+
   Map<int, MultiDragPointerState>? _pointers = <int, MultiDragPointerState>{};
+  final Map<MultiDragPointerState, DragBoundary> _pointerDragBoundarys = <MultiDragPointerState, DragBoundary>{};
 
   @override
   void addAllowedPointer(PointerDownEvent event) {
@@ -264,7 +303,23 @@ abstract class MultiDragGestureRecognizer extends GestureRecognizer {
     assert(_pointers!.containsKey(event.pointer));
     final MultiDragPointerState state = _pointers![event.pointer]!;
     if (event is PointerMoveEvent) {
-      state._move(event);
+      final DragBoundary? dragBoundary = _pointerDragBoundarys[state];
+      final bool isWithinBoundary = dragBoundary == null || dragBoundary.isWithinBoundary(event.position);
+      state._move(event, isWithinBoundary);
+      if (!isWithinBoundary) {
+        switch (outOfBoundaryBehavior) {
+          case DragOutOfBoundaryBehavior.none:
+            break;
+          case DragOutOfBoundaryBehavior.callOutOfBoundary:
+            state._outOfBounds(
+              event.position,
+              dragBoundary.getNearestPositionWithinBoundary(event.position),
+            );
+          case DragOutOfBoundaryBehavior.cancel:
+            state._cancel();
+            _removeState(event.pointer);
+        }
+      }
       // We might be disposed here.
     } else if (event is PointerUpEvent) {
       assert(event.delta == Offset.zero);
@@ -304,6 +359,25 @@ abstract class MultiDragGestureRecognizer extends GestureRecognizer {
     }
     if (drag != null) {
       state._startDrag(drag);
+      final DragBoundary? dragBoundary = createDragBoundary?.call(initialPosition);
+      if (dragBoundary != null) {
+        _pointerDragBoundarys[state] = dragBoundary;
+        if (!dragBoundary.isWithinBoundary(initialPosition)) {
+          switch (outOfBoundaryBehavior) {
+            case DragOutOfBoundaryBehavior.none:
+              break;
+            case DragOutOfBoundaryBehavior.callOutOfBoundary:
+              state._outOfBounds(
+                initialPosition,
+                dragBoundary.getNearestPositionWithinBoundary(initialPosition),
+              );
+            case DragOutOfBoundaryBehavior.cancel:
+              state._cancel();
+              _removeState(pointer);
+              return drag;
+          }
+        }
+      }
     } else {
       _removeState(pointer);
     }
@@ -381,6 +455,8 @@ class ImmediateMultiDragGestureRecognizer extends MultiDragGestureRecognizer {
     super.debugOwner,
     super.supportedDevices,
     super.allowedButtonsFilter,
+    super.outOfBoundaryBehavior = DragOutOfBoundaryBehavior.none,
+    super.createDragBoundary,
   });
 
   @override
@@ -487,6 +563,8 @@ class VerticalMultiDragGestureRecognizer extends MultiDragGestureRecognizer {
     super.debugOwner,
     super.supportedDevices,
     super.allowedButtonsFilter,
+    super.outOfBoundaryBehavior = DragOutOfBoundaryBehavior.none,
+    super.createDragBoundary,
   });
 
   @override
@@ -592,6 +670,8 @@ class DelayedMultiDragGestureRecognizer extends MultiDragGestureRecognizer {
     super.debugOwner,
     super.supportedDevices,
     super.allowedButtonsFilter,
+    super.outOfBoundaryBehavior = DragOutOfBoundaryBehavior.none,
+    super.createDragBoundary,
   });
 
   /// The amount of time the pointer must remain in the same place for the drag

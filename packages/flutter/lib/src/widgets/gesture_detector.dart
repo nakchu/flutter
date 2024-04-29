@@ -14,6 +14,8 @@ import 'scroll_configuration.dart';
 export 'package:flutter/gestures.dart' show
   DragDownDetails,
   DragEndDetails,
+  DragOutOfBoundaryBehavior,
+  DragOutOfBoundaryDetails,
   DragStartDetails,
   DragUpdateDetails,
   ForcePressDetails,
@@ -103,6 +105,29 @@ class GestureRecognizerFactoryWithHandlers<T extends GestureRecognizer> extends 
 
   @override
   void initializer(T instance) => _initializer(instance);
+}
+/// Signature for creating a [GestureDragBoundaryProvider].
+///
+/// Used by [GestureDetector.dragBoundaryProviderBuilder]
+/// to provide a custom boundary for the drag gesture.
+typedef GestureDragBoundaryProviderBuilder = GestureDragBoundaryProvider Function(BuildContext context);
+
+/// Provides a boundary for a drag gesture.
+///
+/// This class is used to define the boundary for a drag gesture.
+/// It can be extended to provide custom boundaries.
+///
+/// See also:
+/// * [DragPointBoundary], which provides a boundary for a drag point.
+/// * [DragRectBoundaryProvider], which provides a boundary for a drag rectangle.
+abstract class GestureDragBoundaryProvider {
+  /// Returns the boundary for the drag gesture.
+  ///
+  /// The [context] parameter usually represents the widget of the drag object.
+  /// For [DragRectBoundaryProvider], it is used as the dragged rectangle.
+  ///
+  /// The [initialPosition] parameter represents the initial position of the drag gesture.
+  DragBoundary getDragBoundary(BuildContext context, Offset initialPosition);
 }
 
 /// A widget that detects gestures.
@@ -264,11 +289,13 @@ class GestureDetector extends StatelessWidget {
     this.onVerticalDragStart,
     this.onVerticalDragUpdate,
     this.onVerticalDragEnd,
+    this.onVerticalDragOutOfBoundary,
     this.onVerticalDragCancel,
     this.onHorizontalDragDown,
     this.onHorizontalDragStart,
     this.onHorizontalDragUpdate,
     this.onHorizontalDragEnd,
+    this.onHorizontalDragOutOfBoundary,
     this.onHorizontalDragCancel,
     this.onForcePressStart,
     this.onForcePressPeak,
@@ -278,6 +305,7 @@ class GestureDetector extends StatelessWidget {
     this.onPanStart,
     this.onPanUpdate,
     this.onPanEnd,
+    this.onPanOutOfBoundary,
     this.onPanCancel,
     this.onScaleStart,
     this.onScaleUpdate,
@@ -288,10 +316,12 @@ class GestureDetector extends StatelessWidget {
     this.trackpadScrollCausesScale = false,
     this.trackpadScrollToScaleFactor = kDefaultTrackpadScrollToScaleFactor,
     this.supportedDevices,
+    this.dragBoundaryProviderBuilder,
+    this.dragBoundaryBehavior = DragOutOfBoundaryBehavior.none,
   }) : assert(() {
-         final bool haveVerticalDrag = onVerticalDragStart != null || onVerticalDragUpdate != null || onVerticalDragEnd != null;
-         final bool haveHorizontalDrag = onHorizontalDragStart != null || onHorizontalDragUpdate != null || onHorizontalDragEnd != null;
-         final bool havePan = onPanStart != null || onPanUpdate != null || onPanEnd != null;
+         final bool haveVerticalDrag = onVerticalDragStart != null || onVerticalDragUpdate != null || onVerticalDragEnd != null || onVerticalDragOutOfBoundary != null;
+         final bool haveHorizontalDrag = onHorizontalDragStart != null || onHorizontalDragUpdate != null || onHorizontalDragEnd != null || onHorizontalDragOutOfBoundary != null;
+         final bool havePan = onPanStart != null || onPanUpdate != null || onPanEnd != null || onPanOutOfBoundary != null;
          final bool haveScale = onScaleStart != null || onScaleUpdate != null || onScaleEnd != null;
          if (havePan || haveScale) {
            if (havePan && haveScale) {
@@ -836,6 +866,16 @@ class GestureDetector extends StatelessWidget {
   ///  * [kPrimaryButton], the button this callback responds to.
   final GestureDragEndCallback? onVerticalDragEnd;
 
+  /// A pointer has contacted the screen with a primary button and has begun to move horizontally,
+  /// or continues such movement, and [dragBoundaryBehavior] is set to
+  /// [DragOutOfBoundaryBehavior.callOutOfBoundary], and the drag gesture exceeds the
+  /// bounds created by the [dragBoundaryProviderBuilder].
+  ///
+  /// See also:
+  ///
+  ///  * [kPrimaryButton], the button this callback responds to.
+  final GestureDragOutOfBoundaryCallback? onVerticalDragOutOfBoundary;
+
   /// The pointer that previously triggered [onVerticalDragDown] did not
   /// complete.
   ///
@@ -876,6 +916,16 @@ class GestureDetector extends StatelessWidget {
   ///
   ///  * [kPrimaryButton], the button this callback responds to.
   final GestureDragEndCallback? onHorizontalDragEnd;
+
+  /// A pointer has contacted the screen with a primary button and has begun to move horizontally,
+  /// or continues such movement, and [dragBoundaryBehavior] is set to
+  /// [DragOutOfBoundaryBehavior.callOutOfBoundary], and the drag gesture exceeds the
+  /// bounds created by the [dragBoundaryProviderBuilder].
+  ///
+  /// See also:
+  ///
+  ///  * [kPrimaryButton], the button this callback responds to.
+  final GestureDragOutOfBoundaryCallback? onHorizontalDragOutOfBoundary;
 
   /// The pointer that previously triggered [onHorizontalDragDown] did not
   /// complete.
@@ -924,6 +974,16 @@ class GestureDetector extends StatelessWidget {
   ///
   ///  * [kPrimaryButton], the button this callback responds to.
   final GestureDragCancelCallback? onPanCancel;
+
+  /// A pointer has contacted the screen with a primary button and has begun to move,
+  /// or continues such movement, and [dragBoundaryBehavior] is set to
+  /// [DragOutOfBoundaryBehavior.callOutOfBoundary], and the drag gesture exceeds the
+  /// bounds created by the [dragBoundaryProviderBuilder].
+  ///
+  /// See also:
+  ///
+  ///  * [kPrimaryButton], the button this callback responds to.
+  final GestureDragOutOfBoundaryCallback? onPanOutOfBoundary;
 
   /// The pointers in contact with the screen have established a focal point and
   /// initial scale of 1.0.
@@ -1016,6 +1076,35 @@ class GestureDetector extends StatelessWidget {
 
   /// {@macro flutter.gestures.scale.trackpadScrollToScaleFactor}
   final Offset trackpadScrollToScaleFactor;
+
+  /// The builder for creating a drag boundary provider.
+  ///
+  /// This builder is used to create a [GestureDragBoundaryProvider] which
+  /// defines the boundary for the drag gesture. The [DragRectBoundaryProvider]
+  /// or [DragPointBoundaryProvider] can be used for creating simple rectangular
+  /// or point boundaries.
+  ///
+  /// {@tool dartpad}
+  /// In this example, [DragRectBoundaryProvider] is used to create a boundary,
+  /// which allows a red rectangle to be dragged within a larger green rectangle.
+  ///
+  /// ** See code in examples/api/lib/widgets/gesture_detector/gesture_detector.3.dart **
+  /// {@end-tool}
+  ///
+  /// See also:
+  ///
+  ///  * [GestureDragBoundaryProvider], the interface for creating custom drag boundary providers.
+  final GestureDragBoundaryProviderBuilder? dragBoundaryProviderBuilder;
+
+  /// {@macro flutter.gestures.monodrag.boundaryBehavior}
+  final DragOutOfBoundaryBehavior dragBoundaryBehavior;
+
+  CreateDragBoundary? _getCreateDragBoundary(BuildContext context) {
+    if (dragBoundaryProviderBuilder != null) {
+      return (Offset initialPosition) => dragBoundaryProviderBuilder!(context).getDragBoundary(context, initialPosition);
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1128,6 +1217,7 @@ class GestureDetector extends StatelessWidget {
         onVerticalDragStart != null ||
         onVerticalDragUpdate != null ||
         onVerticalDragEnd != null ||
+        onVerticalDragOutOfBoundary != null ||
         onVerticalDragCancel != null) {
       gestures[VerticalDragGestureRecognizer] = GestureRecognizerFactoryWithHandlers<VerticalDragGestureRecognizer>(
         () => VerticalDragGestureRecognizer(debugOwner: this, supportedDevices: supportedDevices),
@@ -1137,11 +1227,14 @@ class GestureDetector extends StatelessWidget {
             ..onStart = onVerticalDragStart
             ..onUpdate = onVerticalDragUpdate
             ..onEnd = onVerticalDragEnd
+            ..onOutOfBoundary = onVerticalDragOutOfBoundary
             ..onCancel = onVerticalDragCancel
             ..dragStartBehavior = dragStartBehavior
             ..multitouchDragStrategy = configuration.getMultitouchDragStrategy(context)
             ..gestureSettings = gestureSettings
-            ..supportedDevices = supportedDevices;
+            ..supportedDevices = supportedDevices
+            ..boundaryBehavior = dragBoundaryBehavior
+            ..createDragBoundary = _getCreateDragBoundary(context);
         },
       );
     }
@@ -1150,6 +1243,7 @@ class GestureDetector extends StatelessWidget {
         onHorizontalDragStart != null ||
         onHorizontalDragUpdate != null ||
         onHorizontalDragEnd != null ||
+        onHorizontalDragOutOfBoundary != null ||
         onHorizontalDragCancel != null) {
       gestures[HorizontalDragGestureRecognizer] = GestureRecognizerFactoryWithHandlers<HorizontalDragGestureRecognizer>(
         () => HorizontalDragGestureRecognizer(debugOwner: this, supportedDevices: supportedDevices),
@@ -1159,11 +1253,14 @@ class GestureDetector extends StatelessWidget {
             ..onStart = onHorizontalDragStart
             ..onUpdate = onHorizontalDragUpdate
             ..onEnd = onHorizontalDragEnd
+            ..onOutOfBoundary = onHorizontalDragOutOfBoundary
             ..onCancel = onHorizontalDragCancel
             ..dragStartBehavior = dragStartBehavior
             ..multitouchDragStrategy = configuration.getMultitouchDragStrategy(context)
             ..gestureSettings = gestureSettings
-            ..supportedDevices = supportedDevices;
+            ..supportedDevices = supportedDevices
+            ..boundaryBehavior = dragBoundaryBehavior
+            ..createDragBoundary = _getCreateDragBoundary(context);
         },
       );
     }
@@ -1172,6 +1269,7 @@ class GestureDetector extends StatelessWidget {
         onPanStart != null ||
         onPanUpdate != null ||
         onPanEnd != null ||
+        onPanOutOfBoundary != null ||
         onPanCancel != null) {
       gestures[PanGestureRecognizer] = GestureRecognizerFactoryWithHandlers<PanGestureRecognizer>(
         () => PanGestureRecognizer(debugOwner: this, supportedDevices: supportedDevices),
@@ -1181,11 +1279,14 @@ class GestureDetector extends StatelessWidget {
             ..onStart = onPanStart
             ..onUpdate = onPanUpdate
             ..onEnd = onPanEnd
+            ..onOutOfBoundary = onPanOutOfBoundary
             ..onCancel = onPanCancel
             ..dragStartBehavior = dragStartBehavior
             ..multitouchDragStrategy = configuration.getMultitouchDragStrategy(context)
             ..gestureSettings = gestureSettings
-            ..supportedDevices = supportedDevices;
+            ..supportedDevices = supportedDevices
+            ..boundaryBehavior = dragBoundaryBehavior
+            ..createDragBoundary = _getCreateDragBoundary(context);
         },
       );
     }
@@ -1737,5 +1838,94 @@ class _DefaultSemanticsGestureDelegate extends SemanticsGestureDelegate {
         panHandler(details);
       }
     };
+  }
+}
+
+class _GestureRectBoundaryProvider extends GestureDragBoundaryProvider {
+  _GestureRectBoundaryProvider(this.boundary);
+  final Rect boundary;
+  @override
+  DragBoundary getDragBoundary(BuildContext context, Offset initialPosition) {
+    final Size size = context.size!;
+    final Offset offset = (context.findRenderObject()! as RenderBox).globalToLocal(initialPosition);
+    return DragRectBoundary(boundary: boundary, rectSize: size, rectOffset: offset);
+  }
+}
+
+/// A widget that provides a [GestureDragBoundaryProvider] to its descendants.
+///
+/// This widget creates a [GestureDragBoundaryProvider] that defines the boundary
+/// for a drag gesture as the bounds of the dragged rectangle. The context in
+/// [GestureDragBoundaryProvider.getDragBoundary] is considered as the dragged rectangle.
+/// The position of the widget itself is the drag boundary.
+///
+/// This widget is typically used in scenarios where you want to restrict the dragged
+/// rectangular widget to a specific area.
+///
+/// See also:
+///
+/// * [DragPointBoundaryProvider], a widget that provides bounds for the drag point to descendants.
+/// * [DragRectBoundary], a class that defines drag bounds for a rectangle.
+/// * [DragPointBoundary], a class that defines drag bounds for a point.
+class DragRectBoundaryProvider extends InheritedWidget {
+  /// Creates a widget that provides a [GestureDragBoundaryProvider] to its descendants.
+  const DragRectBoundaryProvider({required super.child, super.key});
+
+  @override
+  bool updateShouldNotify(covariant InheritedWidget oldWidget) {
+    return true;
+  }
+
+  /// Retrieves the [GestureDragBoundaryProvider] from the nearest ancestor
+  /// [DragRectBoundaryProvider] widget.
+  static GestureDragBoundaryProvider of(BuildContext context) {
+    final InheritedElement? element = context.getElementForInheritedWidgetOfExactType<DragRectBoundaryProvider>();
+    assert(element != null, 'No DragRectBoundaryProvider found in context');
+    final RenderBox? rb = element!.findRenderObject() as RenderBox?;
+    assert(rb != null && rb.hasSize, 'RenderBox is not ready yet, You may be accessing before the drag gesture starts');
+    return _GestureRectBoundaryProvider(rb!.localToGlobal(Offset.zero) & rb.size);
+  }
+}
+
+class _GesturePointBoundaryProvider extends GestureDragBoundaryProvider {
+  _GesturePointBoundaryProvider(this.boundary);
+  final Rect boundary;
+  @override
+  DragBoundary getDragBoundary(BuildContext context, Offset initialPosition) {
+    return DragPointBoundary(boundary);
+  }
+}
+
+/// A widget that provides a [GestureDragBoundaryProvider] to its descendants.
+///
+/// This widget creates a [GestureDragBoundaryProvider] that determines whether
+/// the current drag position (point) is within the boundary. The boundary is
+/// defined as the position of the widget itself.
+///
+/// This widget is typically used in scenarios where you want to restrict a drag
+/// gesture within a certain area.
+///
+/// See also:
+/// * [DragRectBoundaryProvider], A widget that provides bounds for the drag rectangle
+/// to descendants
+/// * [DragRectBoundary], a class that defines drag bounds for a rectangle.
+/// * [DragPointBoundary], a class that defines drag bounds for a point.
+class DragPointBoundaryProvider extends InheritedWidget {
+  /// Creates a widget that provides a [GestureDragBoundaryProvider] to its descendants.
+  const DragPointBoundaryProvider({required super.child, super.key});
+
+  @override
+  bool updateShouldNotify(covariant InheritedWidget oldWidget) {
+    return true;
+  }
+
+  /// Retrieves the [GestureDragBoundaryProvider] from the nearest ancestor
+  /// [DragPointBoundaryProvider] widget.
+  static GestureDragBoundaryProvider of(BuildContext context) {
+    final InheritedElement? element = context.getElementForInheritedWidgetOfExactType<DragPointBoundaryProvider>();
+    assert(element != null, 'No DragPointBoundaryProvider found in context');
+    final RenderBox? rb = element!.findRenderObject() as RenderBox?;
+    assert(rb != null && rb.hasSize, 'RenderBox is not ready yet, You may be accessing before the drag gesture starts');
+    return _GesturePointBoundaryProvider(rb!.localToGlobal(Offset.zero) & rb.size);
   }
 }

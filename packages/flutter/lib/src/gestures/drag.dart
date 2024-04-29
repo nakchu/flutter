@@ -4,7 +4,7 @@
 
 import 'drag_details.dart';
 
-export 'drag_details.dart' show DragEndDetails, DragUpdateDetails;
+export 'drag_details.dart' show DragEndDetails, DragOutOfBoundaryDetails, DragUpdateDetails;
 
 /// Interface for objects that receive updates about drags.
 ///
@@ -28,4 +28,7 @@ abstract class Drag {
   /// For example, the user might have been interrupted by a system-modal dialog
   /// in the middle of the drag.
   void cancel() { }
+
+  /// The pointer is out of bounds.
+  void outOfBounds(DragOutOfBoundaryDetails details) { }
 }

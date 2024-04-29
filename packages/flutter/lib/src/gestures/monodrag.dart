@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 
 import 'constants.dart';
+import 'drag_boundary.dart';
 import 'drag_details.dart';
 import 'events.dart';
 import 'recognizer.dart';
@@ -18,7 +19,8 @@ export 'dart:ui' show PointerDeviceKind;
 export 'package:flutter/foundation.dart' show DiagnosticPropertiesBuilder;
 
 export 'drag.dart' show DragEndDetails, DragUpdateDetails;
-export 'drag_details.dart' show DragDownDetails, DragStartDetails, DragUpdateDetails, GestureDragDownCallback, GestureDragStartCallback, GestureDragUpdateCallback;
+export 'drag_boundary.dart' show DragBoundary, DragOutOfBoundaryBehavior, DragPointBoundary, DragRectBoundary;
+export 'drag_details.dart' show DragDownDetails, DragStartDetails, DragUpdateDetails, GestureDragDownCallback, GestureDragOutOfBoundaryCallback, GestureDragStartCallback, GestureDragUpdateCallback;
 export 'events.dart' show PointerDownEvent, PointerEvent, PointerPanZoomStartEvent;
 export 'recognizer.dart' show DragStartBehavior;
 export 'velocity_tracker.dart' show VelocityEstimate, VelocityTracker;
@@ -28,6 +30,11 @@ enum _DragState {
   possible,
   accepted,
 }
+
+/// Signature for create boundaries
+///
+/// Used by [DragGestureRecognizer.createDragBoundary].
+typedef CreateDragBoundary = DragBoundary Function(Offset initialPosition);
 
 /// {@template flutter.gestures.monodrag.GestureDragEndCallback}
 /// Signature for when a pointer that was previously in contact with the screen
@@ -80,14 +87,42 @@ abstract class DragGestureRecognizer extends OneSequenceGestureRecognizer {
     this.multitouchDragStrategy = MultitouchDragStrategy.latestPointer,
     this.velocityTrackerBuilder = _defaultBuilder,
     this.onlyAcceptDragOnThreshold = false,
+    this.boundaryBehavior = DragOutOfBoundaryBehavior.none,
+    this.createDragBoundary,
     super.supportedDevices,
     AllowedButtonsFilter? allowedButtonsFilter,
-  }) : super(allowedButtonsFilter: allowedButtonsFilter ?? _defaultButtonAcceptBehavior);
+  }) : assert(
+          boundaryBehavior == DragOutOfBoundaryBehavior.none || createDragBoundary != null
+       ), super(allowedButtonsFilter: allowedButtonsFilter ?? _defaultButtonAcceptBehavior);
 
   static VelocityTracker _defaultBuilder(PointerEvent event) => VelocityTracker.withKind(event.kind);
 
   // Accept the input if, and only if, [kPrimaryButton] is pressed.
   static bool _defaultButtonAcceptBehavior(int buttons) => buttons == kPrimaryButton;
+
+  /// Called when the drag gesture starts. The returned [DragBoundary] will
+  /// be used to define the boundary for this drag gesture.
+  ///
+  /// See also:
+  /// * [DragBoundary], which defines the boundary of the drag gesture.
+  /// * [CreateDragBoundary], which is a callback that creates a [DragBoundary].
+  CreateDragBoundary? createDragBoundary;
+
+  /// {@template flutter.gestures.monodrag.boundaryBehavior}
+  /// Configures the behavior when the drag gesture exceeds its boundary.
+  ///
+  /// If [DragOutOfBoundaryBehavior.none] is set, the drag gesture will
+  /// continue normally even when it moves outside of its boundary.
+  ///
+  /// If [DragOutOfBoundaryBehavior.callOutOfBoundary] is set,
+  /// the [onOutOfBoundary] callback will be invoked when the drag gesture
+  /// starts and each time it updates, but only if the gesture is out of bounds.
+  /// The [onUpdate] callback will not be invoked in this case.
+  ///
+  /// If [DragOutOfBoundaryBehavior.cancel] is set, the drag gesture will be cancelled
+  /// immediately when it moves outside of its boundary.
+  /// {@endtemplate}
+  DragOutOfBoundaryBehavior boundaryBehavior;
 
   /// Configure the behavior of offsets passed to [onStart].
   ///
@@ -210,6 +245,16 @@ abstract class DragGestureRecognizer extends OneSequenceGestureRecognizer {
   ///  * [DragEndDetails], which is passed as an argument to this callback.
   GestureDragEndCallback? onEnd;
 
+  /// Called when the drag gesture exceeds the defined boundary.
+  ///
+  /// This callback is only invoked when [boundaryBehavior] is
+  /// set to [DragOutOfBoundaryBehavior.callOutOfBoundary].
+  ///
+  /// See also:
+  /// * [createDragBoundary], which is used to define the boundaries for
+  /// the drag gesture.
+  GestureDragOutOfBoundaryCallback? onOutOfBoundary;
+
   /// The pointer that previously triggered [onDown] did not complete.
   ///
   /// See also:
@@ -284,6 +329,8 @@ abstract class DragGestureRecognizer extends OneSequenceGestureRecognizer {
   late OffsetPair _pendingDragOffset;
   late OffsetPair _finalPosition;
   Duration? _lastPendingEventTimestamp;
+  DragBoundary? _dragBoundary;
+  bool _cancelledDueToBoundaryExceeded = false;
 
   /// When asserts are enabled, returns the last tracked pending event timestamp
   /// for this recognizer.
@@ -699,12 +746,19 @@ abstract class DragGestureRecognizer extends OneSequenceGestureRecognizer {
         _checkCancel();
 
       case _DragState.accepted:
-        _checkEnd(pointer);
+        if (_cancelledDueToBoundaryExceeded) {
+          resolve(GestureDisposition.rejected);
+          _checkCancel();
+        } else {
+          _checkEnd(pointer);
+        }
     }
     _hasDragThresholdBeenMet = false;
     _velocityTrackers.clear();
     _initialButtons = null;
     _state = _DragState.ready;
+    _dragBoundary = null;
+    _cancelledDueToBoundaryExceeded = false;
   }
 
   void _giveUpPointer(int pointer) {
@@ -786,6 +840,21 @@ abstract class DragGestureRecognizer extends OneSequenceGestureRecognizer {
       );
       invokeCallback<void>('onStart', () => onStart!(details));
     }
+    _dragBoundary = createDragBoundary?.call(_initialPosition.global);
+    final bool isInBoundary = _isWithInBoundary(_initialPosition.global);
+    if (!isInBoundary) {
+      switch (boundaryBehavior) {
+        case DragOutOfBoundaryBehavior.none:
+          break;
+        case DragOutOfBoundaryBehavior.callOutOfBoundary:
+          _checkOutOfBoundary(
+            globalPosition: _initialPosition.global,
+            localPosition: _initialPosition.local,
+          );
+        case DragOutOfBoundaryBehavior.cancel:
+          _boundaryCancel();
+      }
+    }
   }
 
   void _checkUpdate({
@@ -795,6 +864,7 @@ abstract class DragGestureRecognizer extends OneSequenceGestureRecognizer {
     required Offset globalPosition,
     Offset? localPosition,
   }) {
+    final bool isInBoundary = _isWithInBoundary(globalPosition);
     if (onUpdate != null) {
       final DragUpdateDetails details = DragUpdateDetails(
         sourceTimeStamp: sourceTimeStamp,
@@ -802,8 +872,22 @@ abstract class DragGestureRecognizer extends OneSequenceGestureRecognizer {
         primaryDelta: primaryDelta,
         globalPosition: globalPosition,
         localPosition: localPosition,
+        isWithinBoundary: isInBoundary,
       );
       invokeCallback<void>('onUpdate', () => onUpdate!(details));
+    }
+    if (!isInBoundary) {
+      switch (boundaryBehavior) {
+        case DragOutOfBoundaryBehavior.none:
+          break;
+        case DragOutOfBoundaryBehavior.callOutOfBoundary:
+          _checkOutOfBoundary(
+            globalPosition: globalPosition,
+            localPosition: localPosition,
+          );
+        case DragOutOfBoundaryBehavior.cancel:
+          _boundaryCancel();
+      }
     }
   }
 
@@ -834,10 +918,34 @@ abstract class DragGestureRecognizer extends OneSequenceGestureRecognizer {
     invokeCallback<void>('onEnd', () => onEnd!(details!), debugReport: debugReport);
   }
 
+  void _checkOutOfBoundary({required Offset globalPosition, Offset? localPosition}) {
+    if (onOutOfBoundary != null) {
+      final DragOutOfBoundaryDetails details = DragOutOfBoundaryDetails(
+        nearestPositionWithinBoundary: _dragBoundary!.getNearestPositionWithinBoundary(globalPosition),
+        globalPosition: globalPosition,
+        localPosition: localPosition,
+      );
+      invokeCallback<void>('onOutOfBoundary', () => onOutOfBoundary!(details));
+    }
+  }
+
   void _checkCancel() {
     if (onCancel != null) {
       invokeCallback<void>('onCancel', onCancel!);
     }
+  }
+
+  bool _isWithInBoundary(Offset position) {
+    if (_dragBoundary == null) {
+      return true;
+    }
+    return _dragBoundary!.isWithinBoundary(position);
+  }
+
+  void _boundaryCancel() {
+    assert(_state != _DragState.ready);
+    _cancelledDueToBoundaryExceeded = true;
+    stopAllTrackingPointer();
   }
 
   @override
@@ -870,6 +978,8 @@ class VerticalDragGestureRecognizer extends DragGestureRecognizer {
     super.debugOwner,
     super.supportedDevices,
     super.allowedButtonsFilter,
+    super.createDragBoundary,
+    super.boundaryBehavior,
   });
 
   @override
@@ -930,6 +1040,8 @@ class HorizontalDragGestureRecognizer extends DragGestureRecognizer {
     super.debugOwner,
     super.supportedDevices,
     super.allowedButtonsFilter,
+    super.createDragBoundary,
+    super.boundaryBehavior,
   });
 
   @override
@@ -987,6 +1099,8 @@ class PanGestureRecognizer extends DragGestureRecognizer {
     super.debugOwner,
     super.supportedDevices,
     super.allowedButtonsFilter,
+    super.createDragBoundary,
+    super.boundaryBehavior,
   });
 
   @override
