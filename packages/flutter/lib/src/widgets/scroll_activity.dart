@@ -13,6 +13,7 @@ import 'basic.dart';
 import 'framework.dart';
 import 'scroll_metrics.dart';
 import 'scroll_notification.dart';
+import 'scroll_position.dart';
 
 /// A backend for a [ScrollActivity].
 ///
@@ -47,6 +48,16 @@ abstract class ScrollActivityDelegate {
   /// Terminate the current activity and start a ballistic activity with the
   /// given velocity.
   void goBallistic(double velocity);
+
+  /// Some ballistic activities may want to allow input on child widgets.
+  /// This flag takes precedence over [ScrollActivity.shouldIgnorePointer] when
+  /// starting a ballistic activity.
+  bool? get preferredBallisticIgnorePointer;
+
+  /// Flag to indicate whether the scroll view is over-scrolled. Meaning the
+  /// user has scrolled beyond the extents of the scrollable. This is possible
+  /// e.g. with [BouncingScrollPhysics].
+  bool get outOfRange;
 }
 
 /// Base class for scrolling activities like dragging and flinging.
@@ -596,6 +607,12 @@ class BallisticScrollActivity extends ScrollActivity {
   /// and returns true if the overflow was zero.
   @protected
   bool applyMoveTo(double value) {
+    if (delegate.outOfRange) {
+      shouldIgnorePointer = false;
+      if (delegate is ScrollPosition) {
+        (delegate as ScrollPosition).updateIgnorePointer();
+      }
+    }
     return delegate.setPixels(value).abs() < precisionErrorTolerance;
   }
 
@@ -613,7 +630,7 @@ class BallisticScrollActivity extends ScrollActivity {
   }
 
   @override
-  final bool shouldIgnorePointer;
+  bool shouldIgnorePointer;
 
   @override
   bool get isScrolling => true;

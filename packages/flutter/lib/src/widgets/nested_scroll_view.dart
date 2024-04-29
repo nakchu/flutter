@@ -625,6 +625,14 @@ class _NestedScrollCoordinator implements ScrollActivityDelegate, ScrollHoldCont
   late _NestedScrollController _outerController;
   late _NestedScrollController _innerController;
 
+  @override
+  bool? get preferredBallisticIgnorePointer => null;
+
+  @override
+  bool get outOfRange {
+    return (_outerPosition?.outOfRange ?? false) || _innerPositions.any((_NestedScrollPosition position) => position.outOfRange);
+  }
+
   _NestedScrollPosition? get _outerPosition {
     if (!_outerController.hasClients) {
       return null;
@@ -1235,6 +1243,9 @@ class _NestedScrollPosition extends ScrollPosition implements ScrollActivityDele
 
   ScrollController? _parent;
 
+  @override
+  bool? get preferredBallisticIgnorePointer => null;
+
   void setParent(ScrollController? value) {
     _parent?.detach(this);
     _parent = value;
@@ -1408,6 +1419,9 @@ class _NestedScrollPosition extends ScrollPosition implements ScrollActivityDele
     if (simulation == null) {
       return IdleScrollActivity(this);
     }
+    final bool shouldIgnorePointer = !outOfRange
+                                     && (preferredBallisticIgnorePointer ?? activity?.shouldIgnorePointer ?? true);
+
     switch (mode) {
       case _NestedBallisticScrollActivityMode.outer:
         assert(metrics != null);
@@ -1420,7 +1434,7 @@ class _NestedScrollPosition extends ScrollPosition implements ScrollActivityDele
           metrics,
           simulation,
           context.vsync,
-          activity?.shouldIgnorePointer ?? true,
+          shouldIgnorePointer,
         );
       case _NestedBallisticScrollActivityMode.inner:
         return _NestedInnerBallisticScrollActivity(
@@ -1428,10 +1442,15 @@ class _NestedScrollPosition extends ScrollPosition implements ScrollActivityDele
           this,
           simulation,
           context.vsync,
-          activity?.shouldIgnorePointer ?? true,
+          shouldIgnorePointer,
         );
       case _NestedBallisticScrollActivityMode.independent:
-        return BallisticScrollActivity(this, simulation, context.vsync, activity?.shouldIgnorePointer ?? true);
+        return BallisticScrollActivity(
+          this,
+          simulation,
+          context.vsync,
+          shouldIgnorePointer
+        );
     }
   }
 
