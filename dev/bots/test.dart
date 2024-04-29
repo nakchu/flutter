@@ -69,6 +69,7 @@ import 'suite_runners/run_fuchsia_precache.dart';
 import 'suite_runners/run_realm_checker_tests.dart';
 import 'suite_runners/run_skp_generator_tests.dart';
 import 'suite_runners/run_test_harness_tests.dart';
+import 'suite_runners/run_tool_tests.dart';
 import 'suite_runners/run_verify_binaries_codesigned_tests.dart';
 import 'suite_runners/run_web_tests.dart';
 import 'utils.dart';
@@ -127,9 +128,9 @@ Future<void> main(List<String> args) async {
       'build_tests': _runBuildTests,
       'framework_coverage': frameworkCoverageRunner,
       'framework_tests': frameworkTestsRunner,
-      'tool_tests': _runToolTests,
+      'tool_tests': toolTestsRunner,
       'web_tool_tests': _runWebToolTests,
-      'tool_integration_tests': _runIntegrationToolTests,
+      'tool_integration_tests': runIntegrationToolTests,
       'android_preview_tool_integration_tests': androidPreviewIntegrationToolTestsRunner,
       'tool_host_cross_arch_tests': _runToolHostCrossArchTests,
       // All the unit/widget tests run using `flutter test --platform=chrome --web-renderer=html`
@@ -166,31 +167,8 @@ Future<void> main(List<String> args) async {
   reportSuccessAndExit('${bold}Test successful.$reset');
 }
 
-final String _toolsPath = path.join(flutterRoot, 'packages', 'flutter_tools');
-
-Future<void> _runGeneralToolTests() async {
-  await runDartTest(
-    _toolsPath,
-    testPaths: <String>[path.join('test', 'general.shard')],
-    enableFlutterToolAsserts: false,
-
-    // Detect unit test time regressions (poor time delay handling, etc).
-    // This overrides the 15 minute default for tools tests.
-    // See the README.md and dart_test.yaml files in the flutter_tools package.
-    perTestTimeout: const Duration(seconds: 2),
-  );
-}
-
-Future<void> _runCommandsToolTests() async {
-  await runDartTest(
-    _toolsPath,
-    forceSingleCore: true,
-    testPaths: <String>[path.join('test', 'commands.shard')],
-  );
-}
-
 Future<void> _runWebToolTests() async {
-  final List<File> allFiles = Directory(path.join(_toolsPath, 'test', 'web.shard'))
+  final List<File> allFiles = Directory(path.join(toolsPath, 'test', 'web.shard'))
       .listSync(recursive: true).whereType<File>().toList();
   final List<String> allTests = <String>[];
   for (final File file in allFiles) {
@@ -199,7 +177,7 @@ Future<void> _runWebToolTests() async {
     }
   }
   await runDartTest(
-    _toolsPath,
+    toolsPath,
     forceSingleCore: true,
     testPaths: selectIndexOfTotalSubshard<String>(allTests),
     includeLocalEngineEnv: true,
@@ -208,32 +186,11 @@ Future<void> _runWebToolTests() async {
 
 Future<void> _runToolHostCrossArchTests() {
   return runDartTest(
-    _toolsPath,
+    toolsPath,
     // These are integration tests
     forceSingleCore: true,
     testPaths: <String>[path.join('test', 'host_cross_arch.shard')],
   );
-}
-
-Future<void> _runIntegrationToolTests() async {
-  final List<String> allTests = Directory(path.join(_toolsPath, 'test', 'integration.shard'))
-      .listSync(recursive: true).whereType<File>()
-      .map<String>((FileSystemEntity entry) => path.relative(entry.path, from: _toolsPath))
-      .where((String testPath) => path.basename(testPath).endsWith('_test.dart')).toList();
-
-  await runDartTest(
-    _toolsPath,
-    forceSingleCore: true,
-    testPaths: selectIndexOfTotalSubshard<String>(allTests),
-    collectMetrics: true,
-  );
-}
-
-Future<void> _runToolTests() async {
-  await selectSubshard(<String, ShardRunner>{
-    'general': _runGeneralToolTests,
-    'commands': _runCommandsToolTests,
-  });
 }
 
 Future<void> runForbiddenFromReleaseTests() async {
