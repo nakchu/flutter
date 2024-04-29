@@ -199,7 +199,7 @@ void main() {
     tester.route(down);
     tester.route(move);
     tester.route(up);
-    expect(dragCallbacks, <String>['update', 'outOfBounds', 'update', 'end']);
+    expect(dragCallbacks, <String>['update', 'update', 'outOfBounds', 'end']);
     drag.dispose();
   });
 

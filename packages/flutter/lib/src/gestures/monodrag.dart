@@ -115,9 +115,9 @@ abstract class DragGestureRecognizer extends OneSequenceGestureRecognizer {
   /// continue normally even when it moves outside of its boundary.
   ///
   /// If [DragOutOfBoundaryBehavior.callOutOfBoundary] is set,
-  /// the [onOutOfBoundary] callback will be invoked when the drag gesture
+  /// the [DragGestureRecognizer.onOutOfBoundary] callback will be invoked when the drag gesture
   /// starts and each time it updates, but only if the gesture is out of bounds.
-  /// The [onUpdate] callback will not be invoked in this case.
+  /// The [DragGestureRecognizer.onUpdate] callback will not be invoked in this case.
   ///
   /// If [DragOutOfBoundaryBehavior.cancel] is set, the drag gesture will be cancelled
   /// immediately when it moves outside of its boundary.

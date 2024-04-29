@@ -1,3 +1,7 @@
+// Copyright 2014 The Flutter Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
 import 'dart:math' as math;
 import 'dart:ui';
 
@@ -70,8 +74,8 @@ class DragPointBoundary extends DragBoundary {
 
   @override
   Offset getNearestPositionWithinBoundary(Offset globalLocation) {
-    final double dx = globalLocation.dx.clamp(boundary.left, boundary.right);
-    final double dy = globalLocation.dy.clamp(boundary.top, boundary.bottom);
+    final double dx = clampDouble(globalLocation.dx, boundary.left, boundary.right);
+    final double dy = clampDouble(globalLocation.dy, boundary.top, boundary.bottom);
     return Offset(dx, dy);
   }
 }

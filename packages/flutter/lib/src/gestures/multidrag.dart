@@ -27,7 +27,7 @@ export 'gesture_settings.dart' show DeviceGestureSettings;
 
 /// Signature for create boundaries
 ///
-/// Used by [MultiDragPointerState.createDragBoundary].
+/// Used by [MultiDragGestureRecognizer.createDragBoundary].
 typedef CreateMultiDragBoundary = DragBoundary Function(Offset initialPosition);
 
 /// Signature for when [MultiDragGestureRecognizer] recognizes the start of a drag gesture.
