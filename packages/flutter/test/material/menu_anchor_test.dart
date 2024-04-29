@@ -79,6 +79,7 @@ void main() {
     Offset alignmentOffset = Offset.zero,
     TextDirection textDirection = TextDirection.ltr,
     bool consumesOutsideTap = false,
+    bool closeMenuWhenViewChange = true,
     void Function(TestMenu)? onPressed,
     void Function(TestMenu)? onOpen,
     void Function(TestMenu)? onClose,
@@ -102,6 +103,7 @@ void main() {
                 controller: controller,
                 alignmentOffset: alignmentOffset,
                 consumeOutsideTap: consumesOutsideTap,
+                closeMenuWhenViewChange: closeMenuWhenViewChange,
                 style: MenuStyle(alignment: alignment),
                 onOpen: () {
                   onOpen?.call(TestMenu.anchorButton);
@@ -1746,6 +1748,29 @@ void main() {
 
       expect(opened, isEmpty);
       expect(closed, isNotEmpty);
+    });
+
+    testWidgets('menus not close on view size change if closeMenuWhenViewChange is false', (WidgetTester tester) async {
+      final MediaQueryData mediaQueryData = MediaQueryData.fromView(tester.view);
+      Widget build(Size size) {
+        return MaterialApp(
+          home: Material(
+            child: MediaQuery(
+              data: mediaQueryData.copyWith(size: size),
+              child: buildTestApp(closeMenuWhenViewChange: false),
+            ),
+          ),
+        );
+      }
+      await tester.pumpWidget(build(mediaQueryData.size));
+      controller.open();
+      await tester.pump();
+
+      const Size smallSize = Size(200, 200);
+      await changeSurfaceSize(tester, smallSize);
+      await tester.pumpWidget(build(smallSize));
+      await tester.pump();
+      expect(controller.isOpen, isTrue);
     });
   });
 

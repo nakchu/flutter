@@ -142,6 +142,7 @@ class MenuAnchor extends StatefulWidget {
     required this.menuChildren,
     this.builder,
     this.child,
+    this.closeMenuWhenViewChange = true,
   });
 
   /// An optional controller that allows opening and closing of the menu from
@@ -267,6 +268,10 @@ class MenuAnchor extends StatefulWidget {
   /// to rebuild this child when those change.
   final Widget? child;
 
+  /// Close the menus if the view changes size.
+  /// Defaults to true.
+  final bool closeMenuWhenViewChange;
+
   @override
   State<MenuAnchor> createState() => _MenuAnchorState();
 
@@ -345,7 +350,9 @@ class _MenuAnchorState extends State<MenuAnchor> {
     final Size newSize = MediaQuery.sizeOf(context);
     if (_viewSize != null && newSize != _viewSize) {
       // Close the menus if the view changes size.
-      _root._close();
+      if (_root.widget.closeMenuWhenViewChange) {
+        _root._close();
+      }
     }
     _viewSize = newSize;
   }
@@ -757,6 +764,7 @@ class MenuBar extends StatelessWidget {
     this.clipBehavior = Clip.none,
     this.controller,
     required this.children,
+    this.closeMenuWhenViewChange = true,
   });
 
   /// The [MenuStyle] that defines the visual attributes of the menu bar.
@@ -784,6 +792,10 @@ class MenuBar extends StatelessWidget {
   /// {@macro flutter.material.MenuBar.shortcuts_note}
   final List<Widget> children;
 
+  /// Close the menus if the view changes size.
+  /// Defaults to true.
+  final bool closeMenuWhenViewChange;
+
   @override
   Widget build(BuildContext context) {
     assert(debugCheckHasOverlay(context));
@@ -792,6 +804,7 @@ class MenuBar extends StatelessWidget {
       clipBehavior: clipBehavior,
       style: style,
       menuChildren: children,
+      closeMenuWhenViewChange: closeMenuWhenViewChange,
     );
   }
 
@@ -2322,6 +2335,7 @@ class _MenuBarAnchor extends MenuAnchor {
     super.controller,
     super.clipBehavior,
     super.style,
+    super.closeMenuWhenViewChange,
   });
 
   @override
